@@ -38,6 +38,8 @@ if result_backend.startswith("rediss://") and "ssl_cert_reqs" not in result_back
     separator = "&" if "?" in result_backend else "?"
     result_backend = f"{result_backend}{separator}ssl_cert_reqs=none"
 
+print(f"DEBUG CELERY: broker={broker_url} backend={result_backend}", flush=True)
+
 celery_app = Celery(
     "shieldnetwork",
     broker=broker_url,
