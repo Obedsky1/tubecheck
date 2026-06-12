@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# Prevent crawling of dynamic API routes and internal tool endpoints that do not need indexing
+Disallow: /api/
+Disallow: /auth/
+Disallow: /dashboard/
+Disallow: /app/
+
+# Point directly to the dynamic SSR sitemap
+Sitemap: https://tubecheck.live/sitemap.xml

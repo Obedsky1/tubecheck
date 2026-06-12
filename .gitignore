@@ -1,0 +1,29 @@
+# Dependency directories
+node_modules/
+backend/venv/
+venv/
+
+# Environment files (sensitive credentials)
+.env
+backend/.env
+creator-shield-main/.env
+
+# Build outputs
+dist/
+build/
+.output/
+.vinxi/
+.tanstack/
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Temporary or debug files
+backend/celerybeat-schedule*
+inspect_output.txt
+backend/inspect_output.txt
+scratch/
+.DS_Store
+Thumbs.db

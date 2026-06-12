@@ -1,0 +1,121 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: ankane/pgvector:v0.5.1
+    container_name: creatorshield-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: shieldnetwork
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: creatorshield-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: creatorshield-backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/shieldnetwork
+      - DATABASE_URL_SYNC=postgresql://postgres:password@postgres:5432/shieldnetwork
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - JWT_SECRET_KEY=dev-secret-key-that-is-very-long
+      - JWT_ALGORITHM=HS256
+      - JWT_EXPIRATION_MINUTES=1440
+      - APP_NAME=ShieldNetwork AI
+      - DEBUG=true
+      - EMBEDDING_PROVIDER=local
+      - PROMETHEUS_ENABLED=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── COST OPTIMISATION: Single autoscaling worker replaces 3 always-on workers ─
+  # Previously: celery-worker-default (-c 2) + celery-worker-audit (-c 2) + celery-worker-heavy (-c 1)
+  # = 5 always-running processes consuming compute 24/7 even when idle.
+  # Now: 1 worker that auto-scales from 1 → 6 processes based on queue depth.
+  # Saving: ~$40–80/mo on VPS/cloud compute.
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: creatorshield-worker
+    command: celery -A app.celery_app.celery_app worker
+      --loglevel=info
+      --queues=default,audit,heavy
+      --autoscale=6,1
+      --max-tasks-per-child=100
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:password@postgres:5432/shieldnetwork
+      - DATABASE_URL_SYNC=postgresql://postgres:password@postgres:5432/shieldnetwork
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - EMBEDDING_PROVIDER=local
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: creatorshield-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api
+      - VITE_API_URL=http://localhost:8000/api
+    depends_on:
+      - backend
+
+  # ── COST OPTIMISATION: Prometheus disabled — use Sentry free tier instead ─
+  # Sentry is already in requirements.txt (sentry-sdk[fastapi]) and covers
+  # error monitoring, performance tracking, and alerting at 0 cost up to 5k events/mo.
+  # Re-enable Prometheus only when you exceed 1,000 MAU and need custom metrics.
+  #
+  # prometheus:
+  #   image: prom/prometheus:v2.51.0
+  #   container_name: creatorshield-prometheus
+  #   volumes:
+  #     - ./docker/prometheus:/etc/prometheus
+  #     - prometheusdata:/prometheus
+  #   ports:
+  #     - "9090:9090"
+
+volumes:
+  pgdata:
+  redisdata:
+  # prometheusdata:  # disabled with Prometheus container
