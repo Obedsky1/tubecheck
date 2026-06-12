@@ -37,7 +37,8 @@ if settings.SENTRY_DSN:
             dsn=settings.SENTRY_DSN,
             integrations=[FastApiIntegration()],
             traces_sample_rate=0.1 if not settings.DEBUG else 1.0,
-            environment="development" if settings.DEBUG else "production"
+            environment="development" if settings.DEBUG else "production",
+            send_default_pii=True
         )
         logger.info("Sentry SDK initialized successfully.")
     except Exception as e:

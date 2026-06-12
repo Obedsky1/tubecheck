@@ -39,6 +39,7 @@ class Settings(BaseSettings):
 
     # ── Deepgram ──────────────────────────────────────────────────────────
     DEEPGRAM_API_KEY: str = ""
+    DEEPGRAM_FALLBACK_API_KEY: str = ""
 
     # ── Sightengine Content Moderation ────────────────────────────────────
     SIGHTENGINE_API_USER: str = ""

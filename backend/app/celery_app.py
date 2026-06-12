@@ -7,8 +7,24 @@ from celery.schedules import crontab
 
 from app.config import get_settings
 
+import logging
+
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
+if settings.SENTRY_DSN:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.celery import CeleryIntegration
+        sentry_sdk.init(
+            dsn=settings.SENTRY_DSN,
+            traces_sample_rate=1.0,
+            integrations=[CeleryIntegration()],
+            send_default_pii=True
+        )
+        logger.info("Sentry initialized for Celery worker.")
+    except Exception as e:
+        logger.warning(f"Failed to initialize Sentry for Celery: {e}")
 celery_app = Celery(
     "shieldnetwork",
     broker=settings.REDIS_URL,

@@ -63,7 +63,8 @@ def extract_transcript(self, video_id: str) -> dict:
 
         # 2. Deepgram fallback ONLY if YouTube captions truly unavailable
         #    (not called when caption_text is already populated above)
-        if not caption_text and settings.DEEPGRAM_API_KEY:
+        api_keys = [k for k in (settings.DEEPGRAM_API_KEY, getattr(settings, "DEEPGRAM_FALLBACK_API_KEY", "")) if k]
+        if not caption_text and api_keys:
             try:
                 caption_text = f"This is a placeholder transcript for video {video.title} since no closed captions were available. Synthetic media scans and script similarity checks will run against this generated textual signal."
                 source = TranscriptSource.WHISPER
@@ -239,32 +240,42 @@ def transcribe_upload(self, video_id: str, file_path: str, is_new_upload: bool =
         caption_text = ""
         source = TranscriptSource.NONE
 
-        if audio_extracted and settings.DEEPGRAM_API_KEY:
-            try:
-                import httpx
-                headers = {
-                    "Authorization": f"Token {settings.DEEPGRAM_API_KEY}",
-                    "Content-Type": "application/octet-stream",
-                }
-                params = {
-                    "model": "nova-2",
-                    "smart_format": "true",
-                }
-                with open(audio_path, "rb") as audio_file:
-                    response = httpx.post(
-                        "https://api.deepgram.com/v1/listen",
-                        headers=headers,
-                        params=params,
-                        content=audio_file.read(),
-                        timeout=120.0
-                    )
-                response.raise_for_status()
-                data = response.json()
-                caption_text = data["results"]["channels"][0]["alternatives"][0]["transcript"]
-                source = TranscriptSource.WHISPER
-                logger.info("Successfully transcribed uploaded video using Deepgram: %s", video_id)
-            except Exception as deepgram_err:
-                logger.error("Deepgram transcription failed: %s", deepgram_err)
+        api_keys = [k for k in (settings.DEEPGRAM_API_KEY, getattr(settings, "DEEPGRAM_FALLBACK_API_KEY", "")) if k]
+        if audio_extracted and api_keys:
+            import httpx
+            for key in api_keys:
+                try:
+                    headers = {
+                        "Authorization": f"Token {key}",
+                        "Content-Type": "application/octet-stream",
+                    }
+                    params = {
+                        "model": "nova-2",
+                        "smart_format": "true",
+                    }
+                    with open(audio_path, "rb") as audio_file:
+                        response = httpx.post(
+                            "https://api.deepgram.com/v1/listen",
+                            headers=headers,
+                            params=params,
+                            content=audio_file.read(),
+                            timeout=120.0
+                        )
+                    response.raise_for_status()
+                    data = response.json()
+                    caption_text = data["results"]["channels"][0]["alternatives"][0]["transcript"]
+                    source = TranscriptSource.WHISPER
+                    logger.info("Successfully transcribed uploaded video using Deepgram: %s", video_id)
+                    break
+                except httpx.HTTPStatusError as exc:
+                    if exc.response.status_code in (401, 403, 429):
+                        logger.warning("Deepgram API error with key (status %s), trying fallback...", exc.response.status_code)
+                        continue
+                    logger.error("Deepgram transcription HTTP error: %s", exc)
+                    break
+                except Exception as deepgram_err:
+                    logger.error("Deepgram transcription failed: %s", deepgram_err)
+                    break
 
         # Clean up audio file
         if audio_extracted and os.path.exists(audio_path):
