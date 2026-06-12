@@ -25,9 +25,18 @@ if settings.SENTRY_DSN:
         logger.info("Sentry initialized for Celery worker.")
     except Exception as e:
         logger.warning(f"Failed to initialize Sentry for Celery: {e}")
-ssl_context = None
-if settings.REDIS_URL.startswith("rediss://") or settings.CELERY_RESULT_BACKEND.startswith("rediss://"):
-    ssl_context = {
+import ssl
+
+broker_ssl_context = None
+backend_ssl_context = None
+
+if settings.REDIS_URL.startswith("rediss://"):
+    broker_ssl_context = {
+        "ssl_cert_reqs": ssl.CERT_NONE
+    }
+
+if settings.CELERY_RESULT_BACKEND.startswith("rediss://"):
+    backend_ssl_context = {
         "ssl_cert_reqs": "CERT_NONE"
     }
 
@@ -38,8 +47,8 @@ celery_app = Celery(
 )
 
 celery_app.conf.update(
-    broker_use_ssl=ssl_context,
-    redis_backend_use_ssl=ssl_context,
+    broker_use_ssl=broker_ssl_context,
+    redis_backend_use_ssl=backend_ssl_context,
 
     # Serialisation
     task_serializer="json",
