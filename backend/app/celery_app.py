@@ -25,28 +25,22 @@ if settings.SENTRY_DSN:
         logger.info("Sentry initialized for Celery worker.")
     except Exception as e:
         logger.warning(f"Failed to initialize Sentry for Celery: {e}")
-broker_url = settings.REDIS_URL
-result_backend = settings.CELERY_RESULT_BACKEND
-
-# If using secure Redis (rediss://), Celery requires ssl_cert_reqs to be specified in the query params.
-# We default to ssl_cert_reqs=CERT_NONE to work out-of-the-box with cloud Redis brokers like Upstash.
-if broker_url.startswith("rediss://") and "ssl_cert_reqs" not in broker_url:
-    separator = "&" if "?" in broker_url else "?"
-    broker_url = f"{broker_url}{separator}ssl_cert_reqs=CERT_NONE"
-
-if result_backend.startswith("rediss://") and "ssl_cert_reqs" not in result_backend:
-    separator = "&" if "?" in result_backend else "?"
-    result_backend = f"{result_backend}{separator}ssl_cert_reqs=CERT_NONE"
-
-print(f"DEBUG CELERY: broker={broker_url} backend={result_backend}", flush=True)
+ssl_context = None
+if settings.REDIS_URL.startswith("rediss://") or settings.CELERY_RESULT_BACKEND.startswith("rediss://"):
+    ssl_context = {
+        "ssl_cert_reqs": "CERT_NONE"
+    }
 
 celery_app = Celery(
     "shieldnetwork",
-    broker=broker_url,
-    backend=result_backend,
+    broker=settings.REDIS_URL,
+    backend=settings.CELERY_RESULT_BACKEND,
 )
 
 celery_app.conf.update(
+    broker_use_ssl=ssl_context,
+    redis_backend_use_ssl=ssl_context,
+
     # Serialisation
     task_serializer="json",
     accept_content=["json"],
