@@ -29,14 +29,14 @@ broker_url = settings.REDIS_URL
 result_backend = settings.CELERY_RESULT_BACKEND
 
 # If using secure Redis (rediss://), Celery requires ssl_cert_reqs to be specified in the query params.
-# We default to ssl_cert_reqs=none (equivalent to CERT_NONE) to work out-of-the-box with cloud Redis brokers like Upstash.
+# We default to ssl_cert_reqs=CERT_NONE to work out-of-the-box with cloud Redis brokers like Upstash.
 if broker_url.startswith("rediss://") and "ssl_cert_reqs" not in broker_url:
     separator = "&" if "?" in broker_url else "?"
-    broker_url = f"{broker_url}{separator}ssl_cert_reqs=none"
+    broker_url = f"{broker_url}{separator}ssl_cert_reqs=CERT_NONE"
 
 if result_backend.startswith("rediss://") and "ssl_cert_reqs" not in result_backend:
     separator = "&" if "?" in result_backend else "?"
-    result_backend = f"{result_backend}{separator}ssl_cert_reqs=none"
+    result_backend = f"{result_backend}{separator}ssl_cert_reqs=CERT_NONE"
 
 print(f"DEBUG CELERY: broker={broker_url} backend={result_backend}", flush=True)
 
