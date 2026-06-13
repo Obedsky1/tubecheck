@@ -19,6 +19,14 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 if any("celery" in arg.lower() for arg in sys.argv):
+    # Dynamically limit concurrency/autoscale to prevent OOM on 1GB RAM instances
+    for i, arg in enumerate(sys.argv):
+        if arg.startswith("--autoscale="):
+            sys.argv[i] = "--autoscale=2,1"
+        elif arg in ("-c", "--concurrency"):
+            if i + 1 < len(sys.argv):
+                sys.argv[i+1] = "2"
+                
     class HealthCheckHandler(BaseHTTPRequestHandler):
         def do_GET(self):
             if self.path in ("/", "/health", "/api/health"):
