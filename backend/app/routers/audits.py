@@ -181,9 +181,9 @@ async def upload_video_for_audit(
 
     # Enforce maximum file upload size (e.g. 150MB) to prevent OOM
     MAX_FILE_SIZE = 150 * 1024 * 1024 # 150MB
-    await file.seek(0, 2)
-    file_size = await file.tell()
-    await file.seek(0) # Reset pointer
+    file.file.seek(0, 2)
+    file_size = file.file.tell()
+    file.file.seek(0) # Reset pointer
     
     if file_size > MAX_FILE_SIZE:
         raise HTTPException(

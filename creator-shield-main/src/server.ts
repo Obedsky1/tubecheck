@@ -71,17 +71,28 @@ export default {
     try {
       const url = new URL(request.url);
       if (url.pathname.startsWith("/api/")) {
-        const backendUrl = "https://humble-presence-production.up.railway.app" + url.pathname + url.search;
-        const headers = new Headers(request.headers);
-        headers.set("Host", "humble-presence-production.up.railway.app");
+        try {
+          const backendUrl = "https://humble-presence-production.up.railway.app" + url.pathname + url.search;
+          
+          // Clone request directly to preserve body stream type, Content-Length and boundary mapping
+          const proxyRequest = new Request(backendUrl, request);
+          
+          // Override Host header for Railway routing
+          proxyRequest.headers.set("Host", "humble-presence-production.up.railway.app");
 
-        const proxyRequest = new Request(backendUrl, {
-          method: request.method,
-          headers: headers,
-          body: request.method !== "GET" && request.method !== "HEAD" ? request.body : undefined,
-          redirect: "manual"
-        });
-        return fetch(proxyRequest);
+          return await fetch(proxyRequest);
+        } catch (apiError: any) {
+          console.error("API proxy error:", apiError);
+          return new Response(
+            JSON.stringify({
+              detail: `API Proxy Error: ${apiError.message || apiError}`
+            }),
+            {
+              status: 500,
+              headers: { "content-type": "application/json" }
+            }
+          );
+        }
       }
 
       const handler = await getServerEntry();
