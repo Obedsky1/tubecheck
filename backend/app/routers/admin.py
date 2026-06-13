@@ -23,8 +23,8 @@ from app.routers.auth import get_current_user
 router = APIRouter(prefix="/admin", tags=["admin"])
 logger = logging.getLogger(__name__)
 
-# ── Hard-coded admin email ──────────────────────────────────────────────────
-ADMIN_EMAIL = "justoneguylikethat@gmail.com"
+# ── Hard-coded admin emails ──────────────────────────────────────────────────
+ADMIN_EMAILS = {"justoneguylikethat@gmail.com", "obedasekhamen@gmail.com"}
 
 # In-memory error log store (populated by the custom log handler below).
 # In production you would replace this with a DB table or a log aggregator.
@@ -70,7 +70,7 @@ logging.getLogger().addHandler(_memory_handler)
 
 async def require_admin(current_user: User = Depends(get_current_user)) -> User:
     """Raise 403 if the authenticated user is not the platform admin."""
-    if current_user.email != ADMIN_EMAIL:
+    if not current_user.email or current_user.email.lower() not in ADMIN_EMAILS:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access only.",

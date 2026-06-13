@@ -27,13 +27,13 @@ const nav: NavItem[] = [
   { action: "open-new-audit", label: "New Audit", icon: PlusCircle },
 ];
 
-const ADMIN_EMAIL = "justoneguylikethat@gmail.com";
+const ADMIN_EMAILS = ["justoneguylikethat@gmail.com", "obedasekhamen@gmail.com"];
 
 export function AppSidebar() {
   const path = useRouterState({ select: (r) => r.location.pathname });
   const { user, org } = useAuth();
   const settingsActive = path.startsWith("/app/settings");
-  const isAdmin = user?.email?.toLowerCase() === ADMIN_EMAIL;
+  const isAdmin = user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase());
   const queryClient = useQueryClient();
 
   const handlePrefetch = (to?: string) => {
