@@ -12,6 +12,41 @@ import logging
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
+# Start a background HTTP health check server for Railway if running as Celery worker
+import sys
+import os
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+if any("celery" in arg.lower() for arg in sys.argv):
+    class HealthCheckHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path in ("/", "/health", "/api/health"):
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"status":"healthy","service":"celery-worker"}')
+            else:
+                self.send_response(404)
+                self.end_headers()
+
+        def log_message(self, format, *args):
+            # Suppress default logging to keep worker output clean
+            pass
+
+    def start_health_server():
+        port = int(os.environ.get("PORT", 8000))
+        logger.info(f"Starting Celery background health check server on port {port}...")
+        try:
+            server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+            server.serve_forever()
+        except Exception as e:
+            logger.warning(f"Celery background health check server warning (port may be in use): {e}")
+
+    t = threading.Thread(target=start_health_server, daemon=True)
+    t.start()
+
+
 if settings.SENTRY_DSN:
     try:
         import sentry_sdk
