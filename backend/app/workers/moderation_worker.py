@@ -28,6 +28,16 @@ def _check_and_update_video_status(session, video):
         else:
             video.status = VideoStatus.COMPLETED
             logger.info("Video %s marked as COMPLETED safely.", video.id)
+        
+        # Also update the ForensicJob status to completed!
+        from app.models import ForensicJob
+        job_stmt = select(ForensicJob).where(ForensicJob.video_id == video.id)
+        job = session.scalar(job_stmt)
+        if job:
+            job.status = "completed"
+            job.progress = 1.0
+            logger.info("ForensicJob %s marked as completed.", job.id)
+            
         session.commit()
 
 
@@ -253,5 +263,19 @@ def deepfake_scan(self, video_id: str, file_path: str) -> dict:
 
     except Exception as exc:
         logger.exception("deepfake_scan task failed for video %s", video_id)
+        if self.request.retries >= self.max_retries:
+            try:
+                session = get_sync_db_session()
+                from app.models import ForensicJob
+                job = session.scalar(select(ForensicJob).where(ForensicJob.video_id == video_uuid))
+                if job:
+                    job.status = "failed"
+                    job.error = str(exc)
+                video_record = session.get(Video, video_uuid)
+                if video_record:
+                    video_record.status = VideoStatus.FLAGGED
+                session.commit()
+            except Exception as db_err:
+                logger.error("Failed to update status on task failure: %s", db_err)
         raise self.retry(exc=exc, countdown=60)
 

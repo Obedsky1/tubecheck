@@ -9,8 +9,8 @@ from google import genai
 from google.genai import types
 
 from app.celery_app import celery_app
-from app.workers.task_utils import get_sync_db_session, compute_severity
-from app.models import Video, AuditResult, AuditType
+from app.workers.task_utils import get_sync_db_session, compute_severity, resolve_upload_path
+from app.models import Video, AuditResult, AuditType, VideoStatus
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -36,6 +36,12 @@ def detect_frame_similarity(self, video_id: str) -> dict:
 
         settings = get_settings()
         local_path = f"tmp/uploads/{video.youtube_video_id}.mp4"
+        
+        if "upload-" in video.youtube_video_id:
+            resolved_path = resolve_upload_path(str(video.id), local_path)
+            if resolved_path:
+                local_path = resolved_path
+
         has_file = os.path.exists(local_path)
 
         if not has_file:
@@ -220,4 +226,18 @@ def detect_frame_similarity(self, video_id: str) -> dict:
 
     except Exception as exc:
         logger.exception("Frame similarity audit failed for video %s", video_id)
+        if self.request.retries >= self.max_retries:
+            try:
+                session = get_sync_db_session()
+                from app.models import ForensicJob
+                job = session.scalar(select(ForensicJob).where(ForensicJob.video_id == video_uuid))
+                if job:
+                    job.status = "failed"
+                    job.error = str(exc)
+                video_record = session.get(Video, video_uuid)
+                if video_record:
+                    video_record.status = VideoStatus.FLAGGED
+                session.commit()
+            except Exception as db_err:
+                logger.error("Failed to update status on task failure: %s", db_err)
         raise self.retry(exc=exc, countdown=60)
