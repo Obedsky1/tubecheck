@@ -268,6 +268,10 @@ if _is_celery_process or (_is_eager_mode and not _is_uvicorn_process):
         import app.workers.semantic_audit
         import app.workers.thumbnail_worker
     except Exception as e:
+        import traceback
+        import sys
+        print(f"Failed to import task modules: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
         import logging
         logging.getLogger("celery").error("Failed to import task modules: %s", e)
 
