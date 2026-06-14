@@ -44,6 +44,8 @@ def detect_frame_similarity(self, video_id: str) -> dict:
                 local_path = resolved_path
 
         has_file = os.path.exists(local_path)
+        # Track whether this path was recovered from Redis so we can delete it after parsing
+        _is_recovered_temp = False
 
         if not has_file:
             import tempfile
@@ -53,6 +55,7 @@ def detect_frame_similarity(self, video_id: str) -> dict:
                 if os.path.exists(temp_path):
                     local_path = temp_path
                     has_file = True
+                    _is_recovered_temp = True
                     break
 
         # ── COST GUARD: Redis cache check ──────────────────────────────────
@@ -108,6 +111,16 @@ def detect_frame_similarity(self, video_id: str) -> dict:
                         
                     frame_idx += 1
                 cap.release()
+
+                # ── Delete recovered temp file the moment OpenCV is done ──────
+                if _is_recovered_temp and os.path.exists(local_path):
+                    try:
+                        os.remove(local_path)
+                        logger.info("Deleted recovered temp file after OpenCV parsing: %s", local_path)
+                    except OSError as _del_err:
+                        logger.warning("Could not delete temp file %s: %s", local_path, _del_err)
+                # ─────────────────────────────────────────────────────────────
+
             except Exception as cv_err:
                 logger.error("Error extracting frames with OpenCV: %s", cv_err)
 

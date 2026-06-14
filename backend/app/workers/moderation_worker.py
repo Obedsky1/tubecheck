@@ -2,6 +2,7 @@ import logging
 import uuid
 import httpx
 import os
+import tempfile
 from app.celery_app import celery_app
 from app.workers.task_utils import get_sync_db_session, compute_severity, resolve_upload_path
 from app.models import Video, AuditResult, AuditType, VideoStatus
@@ -205,18 +206,39 @@ def deepfake_scan(self, video_id: str, file_path: str) -> dict:
 
         # Resolve file path — recover from Redis if running in a separate container
         file_path = resolve_upload_path(video_id, file_path) or file_path
+        # Detect recovered /tmp files so we can clean up after both parsers finish
+        _is_temp = file_path.startswith(os.path.join(tempfile.gettempdir(), ""))
 
         # 1. Run visual deepfake analysis (Sightengine + local visual FFT/optical flow/geometry)
-        visual_analysis = synthetic_media_analyzer.analyze_deepfake_video(file_path)
+        # delete_source_after_parse=False here — audio parser still needs the file below.
+        # We do a single explicit delete after BOTH parsers are done (see below).
+        visual_analysis = synthetic_media_analyzer.analyze_deepfake_video(
+            file_path,
+            delete_source_after_parse=False
+        )
         visual_prob = visual_analysis.get("probability", 0.0)
         visual_provider = visual_analysis.get("provider", "Local Visual Forensics")
         vis_details = visual_analysis.get("details", {})
 
         # 2. Run audio deepfake/TTS analysis (ElevenLabs + local DSP bicoherence/phase/pauses)
-        audio_analysis = synthetic_media_analyzer.analyze_audio(file_path)
+        # delete_source_after_parse=False — we delete explicitly below after both are done.
+        audio_analysis = synthetic_media_analyzer.analyze_audio(
+            file_path,
+            delete_source_after_parse=False
+        )
         audio_prob = audio_analysis.get("probability", 0.0)
         audio_provider = audio_analysis.get("provider", "Local DSP Speech Forensics")
         aud_details = audio_analysis.get("details", {})
+
+        # ── Delete recovered temp file immediately after ALL parsers are done ──
+        if _is_temp and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                logger.info("Deleted recovered temp file after all parsers done: %s", file_path)
+            except OSError as _del_err:
+                logger.warning("Could not delete temp file %s: %s", file_path, _del_err)
+        # ─────────────────────────────────────────────────────────────────────────
+
 
         # 3. Calculate combined risk score using exponential penalty scaling
         combined_features = {

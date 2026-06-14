@@ -254,7 +254,12 @@ def run_voice_audit(self, org_id: str) -> dict:
                 # TTS detection
                 tts_prob, red_flags = _detect_tts(features)
                 # Call synthetic analyzer for secondary check
-                analysis = synthetic_media_analyzer.analyze_audio(video_path)
+                # delete_source_after_parse=True: video_path is a /tmp file — delete it the
+                # moment librosa finishes loading the audio so it doesn't bloat /tmp.
+                analysis = synthetic_media_analyzer.analyze_audio(
+                    video_path,
+                    delete_source_after_parse=video_path.startswith(tempfile.gettempdir())
+                )
                 combined_prob = max(tts_prob, analysis["probability"])
                 
                 if combined_prob > 0.5:

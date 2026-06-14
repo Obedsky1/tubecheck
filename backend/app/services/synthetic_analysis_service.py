@@ -407,10 +407,17 @@ cv2 = np = torch = librosa = scipy = None
 
     # ── API ENTRYPOINTS ───────────────────────────────────────────────────────
 
-    def analyze_audio(self, audio_file_path: str) -> Dict[str, Any]:
+    def analyze_audio(self, audio_file_path: str, delete_source_after_parse: bool = False) -> Dict[str, Any]:
         """Runs the voice forensics pipeline (bicoherence, phase variance, micro-pauses).
         
-        Checks ElevenLabs API first, then falls back to local high-fidelity DSP forensics."""
+        Checks ElevenLabs API first, then falls back to local high-fidelity DSP forensics.
+        
+        Args:
+            audio_file_path: Path to the audio/video file to analyze.
+            delete_source_after_parse: If True, deletes audio_file_path from disk the
+                moment librosa finishes loading it. Set to True for recovered Redis
+                uploads to prevent /tmp bloating.
+        """
         self._ensure_imports()  # lazy-load cv2, numpy, torch, librosa, scipy
         # 1. ElevenLabs Speech Classifier API check
         if self.settings.ELEVENLABS_API_KEY:
@@ -450,7 +457,16 @@ cv2 = np = torch = librosa = scipy = None
                 load_path = audio_file_path
                 
             y, sr = librosa.load(load_path, sr=16000, mono=True)
-            
+
+            # ── Delete source file the moment librosa is done reading it ──────
+            if delete_source_after_parse and load_path != temp_wav:
+                try:
+                    os.remove(load_path)
+                    logger.info("Deleted source file after librosa parse: %s", load_path)
+                except OSError as _del_err:
+                    logger.warning("Could not delete source file %s: %s", load_path, _del_err)
+            # ─────────────────────────────────────────────────────────────
+
             p_bic, raw_mean_bic, raw_peak_bic = self._compute_bicoherence(y, sr)
             p_phase, raw_phase_var = self._analyze_phase_mapping(y, sr)
             p_pause, raw_silence, raw_breath = self._analyze_micro_pauses_and_breaths(y, sr)
@@ -510,11 +526,18 @@ cv2 = np = torch = librosa = scipy = None
                 except OSError:
                     pass
 
-    def analyze_deepfake_video(self, video_file_path: str) -> Dict[str, Any]:
+    def analyze_deepfake_video(self, video_file_path: str, delete_source_after_parse: bool = False) -> Dict[str, Any]:
         """Runs the visual deepfake analysis pipeline (FFT check, Farneback optical flow,
         geometric Hu-MSER consistency).
         
-        Checks Sightengine API first (if configured), then merges/falls back to local visual forensics."""
+        Checks Sightengine API first (if configured), then merges/falls back to local visual forensics.
+        
+        Args:
+            video_file_path: Path to the video file to analyze.
+            delete_source_after_parse: If True, deletes video_file_path from disk the
+                moment OpenCV finishes processing. Set to True for recovered Redis
+                uploads to prevent /tmp bloating.
+        """
         self._ensure_imports()  # lazy-load cv2, numpy, torch, librosa, scipy
         sightengine_score = 0.0
         sightengine_status = "not_run"
@@ -563,7 +586,16 @@ cv2 = np = torch = librosa = scipy = None
                 gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
                 frames_gray.append(gray)
             cap.release()
-            
+
+            # ── Delete source file the moment OpenCV is done with it ──────────
+            if delete_source_after_parse and os.path.exists(video_file_path):
+                try:
+                    os.remove(video_file_path)
+                    logger.info("Deleted source video after OpenCV parse: %s", video_file_path)
+                except OSError as _del_err:
+                    logger.warning("Could not delete source video %s: %s", video_file_path, _del_err)
+            # ─────────────────────────────────────────────────────────────
+
             if len(frames_gray) < 2:
                 raise ValueError("Insufficient video frame count extracted.")
                 

@@ -240,6 +240,8 @@ def transcribe_upload(self, video_id: str, file_path: str, is_new_upload: bool =
 
         # Resolve file path — recover from Redis if running in a separate container
         file_path = resolve_upload_path(video_id, file_path) or file_path
+        # Detect whether this is a recovered /tmp file so we can delete it after ffmpeg
+        _is_temp_video = file_path.startswith(os.path.join(tempfile.gettempdir(), ""))
 
         # Extract audio using ffmpeg
         audio_path = os.path.join(tempfile.gettempdir(), f"upload_audio_{video_uuid}.wav")
@@ -261,6 +263,17 @@ def transcribe_upload(self, video_id: str, file_path: str, is_new_upload: bool =
                 )
                 audio_extracted = True
                 logger.info("Successfully extracted audio (max 10m) for uploaded video %s", video_id)
+
+                # ── Delete source video file immediately after ffmpeg is done ──
+                # ffmpeg has fully parsed the video; only the WAV is needed from here on.
+                if _is_temp_video and os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                        logger.info("Deleted temp video after ffmpeg extraction: %s", file_path)
+                    except OSError as _del_err:
+                        logger.warning("Could not delete temp video %s: %s", file_path, _del_err)
+                # ─────────────────────────────────────────────────────────────
+
             except Exception as ffmpeg_err:
                 logger.error("ffmpeg extraction failed for %s: %s", video_id, ffmpeg_err)
         else:
