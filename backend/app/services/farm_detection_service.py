@@ -1,4 +1,4 @@
-import numpy as np
+# numpy imported lazily inside methods to avoid loading ~50MB in the API process
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from app.models import Video, Channel, AuditResult, AuditType
@@ -12,6 +12,7 @@ class FarmDetectionService:
 
     def analyze_network_velocity(self, db: Session, org_id: str) -> Dict[str, Any]:
         """Runs the Network Velocity Radar to detect content farms, synchronized uploads, and template cloning."""
+        import numpy as np  # lazy import — not needed in API process
         # 1. Fetch channels and recent videos (last 30 days)
         stmt_channels = select(Channel).where(Channel.org_id == org_id)
         channels = db.scalars(stmt_channels).all()

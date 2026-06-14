@@ -1,14 +1,12 @@
 import os
 import tempfile
 import httpx
-import cv2
-import numpy as np
-import torch
-import librosa
-import scipy.signal
 import logging
 from app.config import get_settings
 from typing import Dict, Any, List
+
+# cv2, numpy, torch, librosa, scipy are imported lazily inside methods
+# to prevent loading ~500MB of ML libraries in the API (uvicorn) process.
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +17,44 @@ class SyntheticMediaAnalyzer:
     def __init__(self):
         self.settings = get_settings()
 
-    # ── 1. FREQUENCY DOMAIN ANALYSIS (FFT) ───────────────────────────────────
+    @staticmethod
+    def _ensure_imports():
+        """Lazy-load heavy ML libraries on first use.
+        Importing at module level would load ~500MB into the API (uvicorn) process
+        even though the API never calls these methods — only the Celery worker does.
+        """
+        global cv2, np, torch, librosa, scipy
+        try:
+            import cv2 as _cv2
+            cv2 = _cv2
+        except ImportError:
+            cv2 = None
+        try:
+            import numpy as _np
+            np = _np
+        except ImportError:
+            np = None
+        try:
+            import torch as _torch
+            torch = _torch
+        except ImportError:
+            torch = None
+        try:
+            import librosa as _librosa
+            librosa = _librosa
+        except ImportError:
+            librosa = None
+        try:
+            import scipy.signal as _scipy_signal
+            # make scipy.signal available as a pseudo-module attribute
+            import types
+            scipy = types.SimpleNamespace(signal=_scipy_signal)
+        except ImportError:
+            scipy = None
+
+# Initialise placeholders so references before first call don't NameError
+cv2 = np = torch = librosa = scipy = None
+
     
     def _analyze_fft_frame(self, gray_frame: np.ndarray) -> tuple[float, float]:
         """Uses 2D Fourier analysis to detect checkerboard and upsampling artifacts
@@ -376,6 +411,7 @@ class SyntheticMediaAnalyzer:
         """Runs the voice forensics pipeline (bicoherence, phase variance, micro-pauses).
         
         Checks ElevenLabs API first, then falls back to local high-fidelity DSP forensics."""
+        self._ensure_imports()  # lazy-load cv2, numpy, torch, librosa, scipy
         # 1. ElevenLabs Speech Classifier API check
         if self.settings.ELEVENLABS_API_KEY:
             try:
@@ -479,6 +515,7 @@ class SyntheticMediaAnalyzer:
         geometric Hu-MSER consistency).
         
         Checks Sightengine API first (if configured), then merges/falls back to local visual forensics."""
+        self._ensure_imports()  # lazy-load cv2, numpy, torch, librosa, scipy
         sightengine_score = 0.0
         sightengine_status = "not_run"
         
