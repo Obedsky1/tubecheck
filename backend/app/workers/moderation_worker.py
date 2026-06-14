@@ -3,7 +3,7 @@ import uuid
 import httpx
 import os
 from app.celery_app import celery_app
-from app.workers.task_utils import get_sync_db_session, compute_severity
+from app.workers.task_utils import get_sync_db_session, compute_severity, resolve_upload_path
 from app.models import Video, AuditResult, AuditType, VideoStatus
 from app.config import get_settings
 from app.services.hive_service import SightengineService
@@ -177,6 +177,9 @@ def deepfake_scan(self, video_id: str, file_path: str) -> dict:
         video = session.get(Video, video_uuid)
         if not video:
             return {"status": "error", "reason": "video not found"}
+
+        # Resolve file path — recover from Redis if running in a separate container
+        file_path = resolve_upload_path(video_id, file_path) or file_path
 
         # 1. Run visual deepfake analysis (Sightengine + local visual FFT/optical flow/geometry)
         visual_analysis = synthetic_media_analyzer.analyze_deepfake_video(file_path)

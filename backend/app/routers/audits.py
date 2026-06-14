@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
@@ -14,6 +15,8 @@ from app.routers.auth import get_current_user
 from app.schemas import AuditResultResponse, AuditRunRequest, AuditRunResponse, UploadResponse
 
 router = APIRouter(prefix="/audits", tags=["audits"])
+logger = logging.getLogger(__name__)
+
 
 # Mapping from AuditType to Celery task name
 _AUDIT_TASK_MAP: dict[AuditType, str] = {
@@ -216,6 +219,21 @@ async def upload_video_for_audit(
     contents = await file.read()
     with open(file_path, "wb") as f:
         f.write(contents)
+
+    # Also store in Redis for cross-container access.
+    # The Celery worker runs in a separate container with its own /tmp,
+    # so it cannot read the file from disk. Workers will download from Redis.
+    try:
+        import redis as redis_module
+        from app.config import get_settings as _get_settings
+        _s = _get_settings()
+        _r = redis_module.Redis.from_url(_s.REDIS_URL, ssl_cert_reqs=None)
+        redis_key = f"upload:{video_id}"
+        _r.setex(redis_key, 86400, contents)  # 24h TTL
+        logger.info("Stored upload %s in Redis (%d bytes)", video_id, len(contents))
+    except Exception as _redis_err:
+        logger.warning("Failed to cache upload %s in Redis: %s", video_id, _redis_err)
+
 
     # Set the destination channel
     destination_channel_id = None

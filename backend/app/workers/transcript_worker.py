@@ -4,7 +4,7 @@ import os
 import subprocess
 import tempfile
 from app.celery_app import celery_app
-from app.workers.task_utils import get_sync_db_session, compute_severity
+from app.workers.task_utils import get_sync_db_session, compute_severity, resolve_upload_path
 from app.models import Video, TranscriptSource, AuditResult, AuditType, VideoStatus
 from sqlalchemy import select
 from youtube_transcript_api import YouTubeTranscriptApi
@@ -210,6 +210,9 @@ def transcribe_upload(self, video_id: str, file_path: str, is_new_upload: bool =
         video = session.get(Video, video_uuid)
         if not video:
             return {"status": "error", "reason": "video not found"}
+
+        # Resolve file path — recover from Redis if running in a separate container
+        file_path = resolve_upload_path(video_id, file_path) or file_path
 
         # Extract audio using ffmpeg
         audio_path = os.path.join(tempfile.gettempdir(), f"upload_audio_{video_uuid}.wav")
