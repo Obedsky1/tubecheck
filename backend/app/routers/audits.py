@@ -164,24 +164,6 @@ async def upload_video_for_audit(
     """
     org_uuid = uuid.UUID(org_id)
 
-    # Verify org ownership
-    org_check = await db.execute(
-        select(Organization).where(
-            Organization.id == org_uuid,
-            Organization.owner_id == current_user.id,
-        )
-    )
-    org = org_check.scalar_one_or_none()
-    if org is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
-
-    # Verify credit balance
-    if org.available_credits < 1 and org.plan_tier not in [PlanTier.PRO, PlanTier.ENTERPRISE]:
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="Insufficient credits. Please top up or upgrade your plan."
-        )
-
     # Enforce maximum file upload size (e.g. 150MB) to prevent OOM
     MAX_FILE_SIZE = 150 * 1024 * 1024 # 150MB
     file.file.seek(0, 2)
@@ -237,6 +219,24 @@ async def upload_video_for_audit(
         del file_bytes
     except Exception as _redis_err:
         logger.warning("Failed to cache upload %s in Redis: %s", video_id, _redis_err)
+
+    # Verify org ownership
+    org_check = await db.execute(
+        select(Organization).where(
+            Organization.id == org_uuid,
+            Organization.owner_id == current_user.id,
+        )
+    )
+    org = org_check.scalar_one_or_none()
+    if org is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+
+    # Verify credit balance
+    if org.available_credits < 1 and org.plan_tier not in [PlanTier.PRO, PlanTier.ENTERPRISE]:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Insufficient credits. Please top up or upgrade your plan."
+        )
 
 
     # Set the destination channel
