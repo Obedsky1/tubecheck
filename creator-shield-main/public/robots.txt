@@ -1,6 +1,26 @@
 User-agent: *
 Allow: /
 
+# Explicitly allow AI and LLM crawlers for AIO/GEO optimization
+User-agent: CCBot
+Allow: /
+User-agent: ChatGPT-User
+Allow: /
+User-agent: GPTBot
+Allow: /
+User-agent: Google-Extended
+Allow: /
+User-agent: PerplexityBot
+Allow: /
+User-agent: ClaudeBot
+Allow: /
+User-agent: anthropic-ai
+Allow: /
+User-agent: OmgiliBot
+Allow: /
+User-agent: FacebookBot
+Allow: /
+
 # Prevent crawling of dynamic API routes and internal tool endpoints that do not need indexing
 Disallow: /api/
 Disallow: /auth/

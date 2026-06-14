@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, status
 from app.config import get_settings
-from app.workers.sync_worker import daily_network_sync
 import logging
 
 logger = logging.getLogger(__name__)
@@ -33,8 +32,9 @@ async def trigger_daily_sync(authorization: str = Header(None)):
         )
 
     try:
-        # Trigger the Celery task asynchronously
-        daily_network_sync.delay()
+        # Trigger the Celery task asynchronously using send_task to prevent direct imports of worker tasks
+        from app.celery_app import celery_app
+        celery_app.send_task("app.workers.daily_network_sync", queue="default")
         logger.info("Daily Network Sync webhook successfully triggered the background task.")
         return {"status": "success", "message": "Daily Network Sync dispatched."}
     except Exception as e:

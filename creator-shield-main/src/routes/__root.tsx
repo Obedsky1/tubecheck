@@ -73,27 +73,28 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "TubeCheck – YouTube Channel Compliance & Monetization Shield" },
-      { name: "description", content: "TubeCheck monitors your YouTube channels 24/7 for monetization threats, policy violations, and AI-triggered terminations — before they happen." },
-      { name: "author", content: "TubeCheck" },
+      { title: "TubeCheck.live | YouTube Compliance & Monetization Radar" },
+      { name: "description", content: "Audit your channel assets, scripts, and video files before publishing. Stop reused content flags, synthetic voice bans, and shadowbans instantly." },
+      { name: "author", content: "TubeCheck.live" },
       { name: "theme-color", content: "#0f172a" },
-      { property: "og:title", content: "TubeCheck – YouTube Compliance Intelligence" },
-      { property: "og:description", content: "Protect your creator revenue. TubeCheck detects monetization threats, inauthentic-content flags, and termination risks across your entire channel fleet." },
+      { property: "og:title", content: "TubeCheck.live | YouTube Compliance & Monetization Radar" },
+      { property: "og:description", content: "Audit your channel assets, scripts, and video files before publishing. Stop reused content flags, synthetic voice bans, and shadowbans instantly." },
       { property: "og:type", content: "website" },
       { property: "og:url", content: "https://tubecheck.live" },
       { property: "og:image", content: "https://tubecheck.live/og-image.png" },
-      { property: "og:site_name", content: "TubeCheck" },
+      { property: "og:site_name", content: "TubeCheck.live" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "TubeCheck – YouTube Compliance Intelligence" },
-      { name: "twitter:description", content: "AI-powered forensic compliance monitoring for YouTube creators, agencies, and multi-channel networks." },
+      { name: "twitter:title", content: "TubeCheck.live | YouTube Compliance & Monetization Radar" },
+      { name: "twitter:description", content: "Audit your channel assets, scripts, and video files before publishing. Stop reused content flags, synthetic voice bans, and shadowbans instantly." },
       { name: "twitter:image", content: "https://tubecheck.live/og-image.png" },
       { name: "robots", content: "index, follow" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "icon", type: "image/png", href: "/favicon.png" },
+      { rel: "icon", type: "image/png", sizes: "512x512", href: "/icon.png" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
-      { rel: "shortcut icon", href: "/favicon.png" },
+      { rel: "shortcut icon", href: "/favicon.ico" },
       { rel: "canonical", href: "https://tubecheck.live" },
     ],
     scripts: [
@@ -102,7 +103,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         children: JSON.stringify({
           "@context": "https://schema.org",
           "@type": "Organization",
-          "name": "TubeCheck",
+          "name": "TubeCheck.live",
           "url": "https://tubecheck.live",
           "logo": "https://tubecheck.live/logo.png",
           "sameAs": [
@@ -114,9 +115,25 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         type: "application/ld+json",
         children: JSON.stringify({
           "@context": "https://schema.org",
-          "@type": "WebSite",
-          "name": "TubeCheck",
-          "url": "https://tubecheck.live"
+          "@type": "WebApplication",
+          "name": "TubeCheck.live",
+          "url": "https://tubecheck.live",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "All",
+          "potentialAction": [
+            {
+              "@type": "UseAction",
+              "target": "https://tubecheck.live/app/forensics"
+            },
+            {
+              "@type": "UseAction",
+              "target": "https://tubecheck.live/app/niche-finder"
+            },
+            {
+              "@type": "ReadAction",
+              "target": "https://tubecheck.live/blog"
+            }
+          ]
         })
       }
     ],

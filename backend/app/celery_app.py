@@ -157,8 +157,9 @@ celery_app.conf.update(
     },
 )
 
-# Auto-discover task modules inside app.workers
-celery_app.autodiscover_tasks(["app.workers"])
+# Auto-discover task modules inside app.workers ONLY if running as a Celery worker/beat process
+if any("celery" in arg.lower() for arg in sys.argv):
+    celery_app.autodiscover_tasks(["app.workers"])
 
 # Graceful fallback to eager mode if Redis is offline (for local dev without Docker/Redis)
 try:
@@ -241,20 +242,23 @@ except Exception:
 
 # Explicitly import all task modules to register them with Celery at startup.
 # This prevents dynamic import failures in eager mode and celery worker mode.
-try:
-    import app.workers.sync_worker
-    import app.workers.transcript_worker
-    import app.workers.moderation_worker
-    import app.workers.visual_audit
-    import app.workers.voice_audit
-    import app.workers.velocity_audit
-    import app.workers.asset_audit
-    import app.workers.frame_worker
-    import app.workers.script_audit
-    import app.workers.semantic_audit
-    import app.workers.thumbnail_worker
-except Exception as e:
-    import logging
-    logging.getLogger("celery").error("Failed to import task modules: %s", e)
+# Under Uvicorn in production (not running celery CLI and task_always_eager=False),
+# we do NOT import worker modules to avoid bloating RAM with ML dependencies.
+if any("celery" in arg.lower() for arg in sys.argv) or celery_app.conf.task_always_eager:
+    try:
+        import app.workers.sync_worker
+        import app.workers.transcript_worker
+        import app.workers.moderation_worker
+        import app.workers.visual_audit
+        import app.workers.voice_audit
+        import app.workers.velocity_audit
+        import app.workers.asset_audit
+        import app.workers.frame_worker
+        import app.workers.script_audit
+        import app.workers.semantic_audit
+        import app.workers.thumbnail_worker
+    except Exception as e:
+        import logging
+        logging.getLogger("celery").error("Failed to import task modules: %s", e)
 
 

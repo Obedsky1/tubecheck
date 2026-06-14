@@ -216,9 +216,10 @@ async def upload_video_for_audit(
     file_ext = os.path.splitext(file.filename or "upload.mp4")[1]
     file_path = os.path.join(upload_dir, f"{video_id}{file_ext}")
 
-    contents = await file.read()
+    # Save uploaded file to disk in chunks to prevent memory spikes / OOM
     with open(file_path, "wb") as f:
-        f.write(contents)
+        while chunk := await file.read(1024 * 1024):  # Read in 1MB chunks
+            f.write(chunk)
 
     # Also store in Redis for cross-container access.
     # The Celery worker runs in a separate container with its own /tmp,
@@ -229,8 +230,11 @@ async def upload_video_for_audit(
         _s = _get_settings()
         _r = redis_module.Redis.from_url(_s.REDIS_URL, ssl_cert_reqs=None)
         redis_key = f"upload:{video_id}"
-        _r.setex(redis_key, 86400, contents)  # 24h TTL
-        logger.info("Stored upload %s in Redis (%d bytes)", video_id, len(contents))
+        with open(file_path, "rb") as f:
+            file_bytes = f.read()
+        _r.setex(redis_key, 86400, file_bytes)  # 24h TTL
+        logger.info("Stored upload %s in Redis (%d bytes)", video_id, len(file_bytes))
+        del file_bytes
     except Exception as _redis_err:
         logger.warning("Failed to cache upload %s in Redis: %s", video_id, _redis_err)
 

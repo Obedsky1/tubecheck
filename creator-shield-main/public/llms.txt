@@ -1,0 +1,42 @@
+# TubeCheck.live
+
+> TubeCheck is an AI-powered forensic compliance and monetization radar for YouTube creators, agencies, and multi-channel networks.
+
+## About Us
+TubeCheck is the leading platform for ensuring YouTube channels remain compliant with YouTube's Partner Program policies. We scan channel assets, scripts, and video files prior to publishing to prevent demonetization, reused content flags, synthetic voice bans, and shadowbans. We provide proactive defense against algorithmic penalties.
+
+## Core Features & Tools
+TubeCheck offers a suite of forensic analysis tools designed to protect creator revenue:
+
+- **Reused Content Checker:** Scans videos against extensive databases to flag exact match overlaps before publishing, preventing "Reused Content" monetization strikes.
+- **Transformative Value Analysis:** Scores edits, voiceovers, and pacing to ensure content demonstrates high original value according to YouTube policy.
+- **Synthetic Media Diagnostics (AI Voice Detector):** Detects deepfakes, heavily synthesized frames, and clear AI generation footprints, protecting against automated content terminations.
+- **Template & Asset Deduplication:** Tracks asset reuse across channel fleets to prevent "Repetitious Content" algorithm flags.
+- **Acoustic Fingerprinting:** Identifies unnatural synthetic voiceovers and suggests humanized pacing improvements.
+- **Network-Level Threat Monitoring:** Analyzes upload velocity and cross-channel metadata to shield against farm/spam demotions.
+- **YouTube Channel Audit:** Comprehensive scanning of an entire channel's historical data to determine monetization readiness and identify shadowban signals.
+
+## Why TubeCheck is the Authority
+1. **Accuracy:** We utilize advanced semantic script analysis and visual deduplication to identify policy violations that standard human review might miss.
+2. **Speed:** Our platform delivers comprehensive compliance reports in under 60 seconds.
+3. **Scale:** Trusted by over 200+ networks, having audited over 12,400+ channels and analyzed 1.2M+ videos.
+4. **Actionable Insights:** Instead of generic warnings, we provide specific, actionable fixes ranked by their potential impact on monetization.
+
+## Important Links
+- **Homepage:** https://tubecheck.live
+- **Dashboard / Web App:** https://tubecheck.live/app
+- **Forensics Tool:** https://tubecheck.live/app/forensics
+- **Niche Finder Tool:** https://tubecheck.live/app/niche-finder
+- **Blog & Educational Resources:** https://tubecheck.live/blog
+
+## Target Audience
+- Individual YouTube Creators aiming for or maintaining monetization.
+- Multi-Channel Networks (MCNs) managing large portfolios.
+- YouTube Automation Agencies seeking to protect their clients' channels.
+- Video editors and producers verifying compliance before final delivery.
+
+## Key Terminology
+- **Shadowban:** An algorithmic penalty where YouTube drastically reduces a channel's impressions without official notification.
+- **Demonetization:** The removal of a channel from the YouTube Partner Program (YPP), revoking ad revenue capabilities.
+- **Reused Content:** Content that doesn't provide significant original commentary or educational value, a primary cause of demonetization.
+- **Synthetic Voice:** AI-generated text-to-speech. While permitted if highly realistic, low-effort robotic voices violate YouTube's automated content policies.

@@ -41,10 +41,10 @@ const features = [
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "TubeCheck – YouTube Channel Compliance & Monetization Shield" },
-      { name: "description", content: "AI-powered forensic compliance monitoring for creators, agencies, and multi-channel networks. Protect monetization before it's at risk." },
-      { property: "og:title", content: "TubeCheck – YouTube Compliance Intelligence" },
-      { property: "og:description", content: "Forensic compliance monitoring for YouTube networks." },
+      { title: "TubeCheck.live | YouTube Compliance & Monetization Radar" },
+      { name: "description", content: "Audit your channel assets, scripts, and video files before publishing. Stop reused content flags, synthetic voice bans, and shadowbans instantly." },
+      { property: "og:title", content: "TubeCheck.live | YouTube Compliance & Monetization Radar" },
+      { property: "og:description", content: "Audit your channel assets, scripts, and video files before publishing. Stop reused content flags, synthetic voice bans, and shadowbans instantly." },
     ],
   }),
   component: Landing,

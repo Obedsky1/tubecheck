@@ -1,10 +1,10 @@
 import asyncio
 from sqlalchemy import select
-from app.database import async_session_maker
+from app.database import async_session_factory
 from app.models import Channel, Organization, AuditResult, Video, VideoStatus
 
 async def main():
-    async with async_session_maker() as session:
+    async with async_session_factory() as session:
         print("--- Sentinel Channel ---")
         ch = await session.execute(select(Channel).where(Channel.id == '00000000-0000-0000-0000-000000000000'))
         ch = ch.scalar()
