@@ -12,11 +12,11 @@ export const Route = createFileRoute("/admin")({
   component: AdminPanel,
 });
 
-const API = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const API = "";  // Use relative URLs — same as api.ts uses /api base
 
 function apiFetch(path: string, options?: RequestInit) {
   const token = localStorage.getItem("cs_token");
-  return fetch(`${API}/api${path}`, {
+  return fetch(`/api${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
