@@ -18,6 +18,8 @@ import os
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
+print(f"[celery_app] sys.argv at import time: {sys.argv}", flush=True)
+
 if any("celery" in arg.lower() for arg in sys.argv):
     # Dynamically limit concurrency/autoscale to prevent OOM on 1GB RAM instances.
     # Read cap from env (set CELERYD_CONCURRENCY=2 in Railway), default to 2.
