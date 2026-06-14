@@ -7,6 +7,7 @@ from typing import Dict, Any, List
 
 # cv2, numpy, torch, librosa, scipy are imported lazily inside methods
 # to prevent loading ~500MB of ML libraries in the API (uvicorn) process.
+cv2 = np = torch = librosa = scipy = None
 
 logger = logging.getLogger(__name__)
 
@@ -52,10 +53,7 @@ class SyntheticMediaAnalyzer:
         except ImportError:
             scipy = None
 
-# Initialise placeholders so references before first call don't NameError
-cv2 = np = torch = librosa = scipy = None
 
-    
     def _analyze_fft_frame(self, gray_frame: np.ndarray) -> tuple[float, float]:
         """Uses 2D Fourier analysis to detect checkerboard and upsampling artifacts
         characteristic of diffusion and GAN generator architectures.
