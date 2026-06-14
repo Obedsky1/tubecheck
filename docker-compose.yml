@@ -62,8 +62,8 @@ services:
   # ── COST OPTIMISATION: Single autoscaling worker replaces 3 always-on workers ─
   # Previously: celery-worker-default (-c 2) + celery-worker-audit (-c 2) + celery-worker-heavy (-c 1)
   # = 5 always-running processes consuming compute 24/7 even when idle.
-  # Now: 1 worker that auto-scales from 1 → 6 processes based on queue depth.
-  # Saving: ~$40–80/mo on VPS/cloud compute.
+  # Fixed concurrency=2 to prevent OOM crashes on Railway 1GB RAM containers.
+  # --autoscale was causing the worker to spawn up to 6 processes → OOM → crash loop.
   celery-worker:
     build:
       context: ./backend
@@ -72,7 +72,7 @@ services:
     command: celery -A app.celery_app.celery_app worker
       --loglevel=info
       --queues=default,audit,heavy
-      --autoscale=6,1
+      --concurrency=2
       --max-tasks-per-child=100
     volumes:
       - ./backend:/app
