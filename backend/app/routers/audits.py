@@ -164,6 +164,10 @@ async def upload_video_for_audit(
     """
     org_uuid = uuid.UUID(org_id)
 
+    # Release the dependency database session immediately to return the connection to the pool
+    # while we perform the long file transfer/caching.
+    await db.close()
+
     # Enforce maximum file upload size (e.g. 150MB) to prevent OOM
     MAX_FILE_SIZE = 150 * 1024 * 1024 # 150MB
     file.file.seek(0, 2)
@@ -219,6 +223,10 @@ async def upload_video_for_audit(
         del file_bytes
     except Exception as _redis_err:
         logger.warning("Failed to cache upload %s in Redis: %s", video_id, _redis_err)
+
+    # Open a fresh database session for writing video and job records
+    from app.database import async_session_factory
+    db = async_session_factory()
 
     # Verify org ownership
     org_check = await db.execute(
@@ -320,6 +328,7 @@ async def upload_video_for_audit(
         db.add(ledger_entry)
 
     await db.commit()
+    await db.close()
 
     # Dispatch audit pipeline
     from app.celery_app import celery_app
