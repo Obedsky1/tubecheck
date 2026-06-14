@@ -14,31 +14,46 @@ logger = logging.getLogger(__name__)
 
 
 def _check_and_update_video_status(session, video):
-    """Helper to check if both pre-publish audits are complete and transition the VideoStatus."""
+    """Helper to check if pre-publish audits are complete and transition the VideoStatus.
+
+    Finalization rules:
+    - Uploaded videos (youtube_video_id starts with 'upload-'): wait for both DEEPFAKE_SCAN + HUMAN_VALUE.
+    - YouTube channel videos (sync_worker dispatches both extract_transcript + scan_moderation):
+      also wait for both DEEPFAKE_SCAN + HUMAN_VALUE.
+    """
     stmt = select(AuditResult).where(AuditResult.video_id == video.id)
     results = session.scalars(stmt).all()
     audit_types = {r.audit_type for r in results}
-    
-    if AuditType.DEEPFAKE_SCAN in audit_types and AuditType.HUMAN_VALUE in audit_types:
+
+    from app.models import ForensicJob
+    job_stmt = select(ForensicJob).where(ForensicJob.video_id == video.id)
+    job = session.scalar(job_stmt)
+
+    has_deepfake = AuditType.DEEPFAKE_SCAN in audit_types
+    has_human_value = AuditType.HUMAN_VALUE in audit_types
+
+    # Both uploaded videos and YouTube channel videos get DEEPFAKE_SCAN dispatched.
+    # Finalize only when both audits are present.
+    ready = has_deepfake and has_human_value
+
+    if ready:
         # Check if any audit is high/critical risk
-        max_risk = max(r.risk_score for r in results)
+        max_risk = max((r.risk_score for r in results), default=0.0)
         if max_risk >= 60.0:
             video.status = VideoStatus.FLAGGED
             logger.info("Video %s marked as FLAGGED due to high risk audit results.", video.id)
         else:
             video.status = VideoStatus.COMPLETED
             logger.info("Video %s marked as COMPLETED safely.", video.id)
-        
-        # Also update the ForensicJob status to completed!
-        from app.models import ForensicJob
-        job_stmt = select(ForensicJob).where(ForensicJob.video_id == video.id)
-        job = session.scalar(job_stmt)
+
+        # Update ForensicJob if one exists
         if job:
             job.status = "completed"
             job.progress = 1.0
             logger.info("ForensicJob %s marked as completed.", job.id)
-            
+
         session.commit()
+
 
 
 @celery_app.task(name="app.workers.moderation_worker.scan_moderation", bind=True, max_retries=3)

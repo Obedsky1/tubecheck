@@ -3,6 +3,7 @@ import uuid
 import os
 import cv2
 import json
+from sqlalchemy import select
 import hashlib
 from pydantic import BaseModel, Field
 from google import genai
@@ -136,7 +137,7 @@ def detect_frame_similarity(self, video_id: str) -> dict:
                 contents.append(prompt)
 
                 response = client.models.generate_content(
-                    model='gemini-1.5-flash-8b',
+                    model='gemini-1.5-flash',
                     contents=contents,
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json",
