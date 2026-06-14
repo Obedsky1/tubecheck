@@ -12,6 +12,31 @@ Usage (Railway start command):
 import sys
 import os
 
+def reorder_argv():
+    """Ensure global Celery options like -A / --app are placed before the subcommand."""
+    global_opts = []
+    other_args = []
+    
+    i = 1
+    while i < len(sys.argv):
+        arg = sys.argv[i]
+        if arg in ("-A", "--app"):
+            if i + 1 < len(sys.argv):
+                global_opts.extend([arg, sys.argv[i+1]])
+                i += 2
+            else:
+                global_opts.append(arg)
+                i += 1
+        elif arg.startswith("--app="):
+            global_opts.append(arg)
+            i += 1
+        else:
+            other_args.append(arg)
+            i += 1
+            
+    sys.argv = [sys.argv[0]] + global_opts + other_args
+    print(f"[worker_start] Reordered argv: {sys.argv}", flush=True)
+
 def sanitize_argv():
     """Strip autoscale/concurrency flags and inject our safe concurrency cap."""
     max_concurrency = int(os.environ.get("CELERYD_CONCURRENCY", "2"))
@@ -41,6 +66,7 @@ def sanitize_argv():
     print(f"[worker_start] Sanitized argv (concurrency={max_concurrency}): {sys.argv}", flush=True)
 
 # Run BEFORE any Celery imports
+reorder_argv()
 sanitize_argv()
 
 # Now import and run Celery's worker command
