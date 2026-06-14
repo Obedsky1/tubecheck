@@ -19,13 +19,33 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 if any("celery" in arg.lower() for arg in sys.argv):
-    # Dynamically limit concurrency/autoscale to prevent OOM on 1GB RAM instances
+    # Dynamically limit concurrency/autoscale to prevent OOM on 1GB RAM instances.
+    # Read cap from env (set CELERYD_CONCURRENCY=2 in Railway), default to 2.
+    _max_concurrency = int(os.environ.get("CELERYD_CONCURRENCY", "2"))
+    _max_concurrency = min(_max_concurrency, 2)  # hard cap at 2 regardless
+    
+    # Strip all existing concurrency/autoscale flags, then inject our cap
+    new_argv = []
+    skip_next = False
     for i, arg in enumerate(sys.argv):
-        if arg.startswith("--autoscale="):
-            sys.argv[i] = "--autoscale=2,1"
+        if skip_next:
+            skip_next = False
+            continue
+        if arg.startswith("--autoscale=") or arg == "--autoscale":
+            if arg == "--autoscale":
+                skip_next = True  # skip the value too
+            continue  # drop the autoscale flag entirely
         elif arg in ("-c", "--concurrency"):
-            if i + 1 < len(sys.argv):
-                sys.argv[i+1] = "2"
+            skip_next = True  # skip the value
+            continue  # drop it; we'll add our own below
+        elif arg.startswith("--concurrency="):
+            continue  # drop it
+        else:
+            new_argv.append(arg)
+    # Inject our hard cap
+    new_argv.append(f"--concurrency={_max_concurrency}")
+    sys.argv = new_argv
+    logger.info(f"[celery_app] Overrode worker argv (concurrency={_max_concurrency}): {sys.argv}")
                 
     class HealthCheckHandler(BaseHTTPRequestHandler):
         def do_GET(self):
@@ -102,6 +122,10 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=100,
+
+    # Concurrency cap: prevent OOM on 1GB Railway containers
+    # Reads CELERYD_CONCURRENCY env var, capped at 2
+    worker_concurrency=min(int(os.environ.get("CELERYD_CONCURRENCY", "2")), 2),
 
     # Timeouts
     task_soft_time_limit=300,
