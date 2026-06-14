@@ -48,24 +48,37 @@ def resolve_upload_path(video_id: str, expected_path: str) -> str | None:
         import redis as redis_module
         settings = get_settings()
         r = redis_module.Redis.from_url(settings.REDIS_URL, ssl_cert_reqs=None)
-        redis_key = f"upload:{video_id}"
-        data = r.get(redis_key)
-        if not data:
-            logger.error("No Redis cache entry found for upload:%s", video_id)
-            return None
+        redis_key_base = f"upload:{video_id}"
+        count_bytes = r.get(f"{redis_key_base}:count")
 
         # Write to local /tmp so the rest of the task can work normally
         import tempfile
         upload_dir = os.path.join(tempfile.gettempdir(), "shieldnetwork_uploads")
         os.makedirs(upload_dir, exist_ok=True)
         local_path = os.path.join(upload_dir, f"{video_id}.mp4")
-        with open(local_path, "wb") as fh:
-            fh.write(data)
 
-        logger.info(
-            "Recovered upload %s from Redis → %s (%d bytes)",
-            video_id, local_path, len(data)
-        )
+        with open(local_path, "wb") as fh:
+            if not count_bytes:
+                # Fallback for older monolithic keys
+                data = r.get(redis_key_base)
+                if not data:
+                    logger.error("No Redis cache entry found for upload:%s", video_id)
+                    return None
+                fh.write(data)
+                logger.info("Recovered upload %s (monolithic) from Redis", video_id)
+            else:
+                chunk_count = int(count_bytes)
+                total_bytes = 0
+                for i in range(chunk_count):
+                    chunk_data = r.get(f"{redis_key_base}:{i}")
+                    if chunk_data:
+                        fh.write(chunk_data)
+                        total_bytes += len(chunk_data)
+                    else:
+                        logger.error("Missing chunk %d for upload %s", i, video_id)
+                        return None
+                logger.info("Recovered upload %s (chunked) from Redis: %d bytes", video_id, total_bytes)
+
         return local_path
 
     except Exception as exc:

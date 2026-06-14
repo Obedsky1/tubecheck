@@ -215,19 +215,19 @@ async def upload_video_for_audit(
         from app.config import get_settings as _get_settings
         _s = _get_settings()
         _r = redis_module.Redis.from_url(_s.REDIS_URL, ssl_cert_reqs=None)
-        redis_key = f"upload:{video_id}"
+        redis_key_base = f"upload:{video_id}"
         CHUNK = 1024 * 1024  # 1MB
         with open(file_path, "rb") as f:
-            # Build the value in chunks using append so we never hold the full
-            # file in a single Python bytes object.
-            _r.delete(redis_key)  # clear any stale entry first
+            chunk_index = 0
             while True:
                 chunk = f.read(CHUNK)
                 if not chunk:
                     break
-                _r.append(redis_key, chunk)
-            _r.expire(redis_key, 86400)  # 24h TTL
-        logger.info("Stored upload %s in Redis (chunked)", video_id)
+                chunk_key = f"{redis_key_base}:{chunk_index}"
+                _r.setex(chunk_key, 86400, chunk)
+                chunk_index += 1
+            _r.setex(f"{redis_key_base}:count", 86400, str(chunk_index))
+        logger.info("Stored upload %s in Redis (%d chunks)", video_id, chunk_index)
     except Exception as _redis_err:
         logger.warning("Failed to cache upload %s in Redis: %s", video_id, _redis_err)
 

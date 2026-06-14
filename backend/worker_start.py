@@ -39,8 +39,8 @@ def reorder_argv():
 
 def sanitize_argv():
     """Strip autoscale/concurrency flags and inject our safe concurrency cap."""
-    max_concurrency = int(os.environ.get("CELERYD_CONCURRENCY", "2"))
-    max_concurrency = min(max_concurrency, 2)  # hard cap at 2
+    max_concurrency = int(os.environ.get("CELERYD_CONCURRENCY", "1"))
+    max_concurrency = min(max_concurrency, 1)  # hard cap at 1
 
     new_argv = []
     skip_next = False
