@@ -169,7 +169,7 @@ async def upload_video_for_audit(
     await db.close()
 
     # Enforce maximum file upload size (e.g. 150MB) to prevent OOM
-    MAX_FILE_SIZE = 150 * 1024 * 1024 # 150MB
+    MAX_FILE_SIZE = 80 * 1024 * 1024 # 80MB — keep RAM bounded on 1GB Railway containers
     file.file.seek(0, 2)
     file_size = file.file.tell()
     file.file.seek(0) # Reset pointer
@@ -207,7 +207,7 @@ async def upload_video_for_audit(
         while chunk := await file.read(1024 * 1024):  # Read in 1MB chunks
             f.write(chunk)
 
-    # Also store in Redis for cross-container access.
+    # Also store in Redis for cross-container access in 1MB chunks to prevent OOM.
     # The Celery worker runs in a separate container with its own /tmp,
     # so it cannot read the file from disk. Workers will download from Redis.
     try:
@@ -216,11 +216,18 @@ async def upload_video_for_audit(
         _s = _get_settings()
         _r = redis_module.Redis.from_url(_s.REDIS_URL, ssl_cert_reqs=None)
         redis_key = f"upload:{video_id}"
+        CHUNK = 1024 * 1024  # 1MB
         with open(file_path, "rb") as f:
-            file_bytes = f.read()
-        _r.setex(redis_key, 86400, file_bytes)  # 24h TTL
-        logger.info("Stored upload %s in Redis (%d bytes)", video_id, len(file_bytes))
-        del file_bytes
+            # Build the value in chunks using append so we never hold the full
+            # file in a single Python bytes object.
+            _r.delete(redis_key)  # clear any stale entry first
+            while True:
+                chunk = f.read(CHUNK)
+                if not chunk:
+                    break
+                _r.append(redis_key, chunk)
+            _r.expire(redis_key, 86400)  # 24h TTL
+        logger.info("Stored upload %s in Redis (chunked)", video_id)
     except Exception as _redis_err:
         logger.warning("Failed to cache upload %s in Redis: %s", video_id, _redis_err)
 

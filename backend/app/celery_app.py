@@ -241,10 +241,20 @@ except Exception:
     celery_app.send_task = eager_send_task
 
 # Explicitly import all task modules to register them with Celery at startup.
-# This prevents dynamic import failures in eager mode and celery worker mode.
-# Under Uvicorn in production (not running celery CLI and task_always_eager=False),
-# we do NOT import worker modules to avoid bloating RAM with ML dependencies.
-if any("celery" in arg.lower() for arg in sys.argv) or celery_app.conf.task_always_eager:
+# ONLY do this when actually running as a Celery worker/beat process.
+# NEVER import these in the API (uvicorn) process — cv2 and numpy alone cost ~150MB of RAM.
+_is_celery_process = any("celery" in arg.lower() for arg in sys.argv)
+_is_eager_mode = celery_app.conf.task_always_eager
+
+# Detect if running under uvicorn (API process) by checking sys.argv.
+# The API container runs: uvicorn app.main:app ... or python run_server.py
+# The worker container runs: python worker_start.py ... celery worker ...
+_is_uvicorn_process = any(
+    "uvicorn" in arg.lower() or "run_server" in arg.lower()
+    for arg in sys.argv
+)
+
+if _is_celery_process or (_is_eager_mode and not _is_uvicorn_process):
     try:
         import app.workers.sync_worker
         import app.workers.transcript_worker
