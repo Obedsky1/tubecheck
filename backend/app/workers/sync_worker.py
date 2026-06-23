@@ -129,9 +129,13 @@ def sync_youtube_channel(self, channel_id: str) -> dict:
                     thumbnail_url=v_data.get("thumbnail_url"),
                     published_at=published_at_dt
                 )
-                session.add(new_video)
-                session.commit()
-                new_video_ids.append(str(new_video.id))
+                try:
+                    session.add(new_video)
+                    session.commit()
+                    new_video_ids.append(str(new_video.id))
+                except Exception as e:
+                    session.rollback()
+                    logger.warning("Video %s already exists or caused DB error: %s", v_yt_id, e)
 
         from app.services.task_dispatcher import enqueue_task
 
