@@ -55,6 +55,13 @@ class Settings(BaseSettings):
     FLUTTERWAVE_SECRET_KEY: str = ""
     FLUTTERWAVE_WEBHOOK_SECRET: str = ""
 
+    # ── GCP / Cloud Tasks ─────────────────────────────────────────────────
+    GCP_PROJECT_ID: str = ""
+    GCP_REGION: str = "us-central1"
+    GCP_CLOUD_TASKS_QUEUE: str = "creatorshield-queue"
+    GCP_OIDC_SERVICE_ACCOUNT_EMAIL: str = ""
+    GCP_CLOUD_RUN_URL: str = ""
+
     # ── Monitoring & Logging ──────────────────────────────────────────────
     SENTRY_DSN: str = ""
     PROMETHEUS_ENABLED: bool = True

@@ -4,6 +4,7 @@ import { Panel } from "@/components/dashboard/Panel";
 import { SeverityBadge } from "@/components/dashboard/SeverityBadge";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { getVideoMaxRisk } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import {
   ShieldCheck,
@@ -129,7 +130,7 @@ function FlaggedVideosPage() {
       !searchQuery ||
       v.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       v.channel_title?.toLowerCase().includes(searchQuery.toLowerCase());
-    const maxRisk = v.audits?.length > 0 ? Math.max(...v.audits.map((a: any) => a.risk_score)) : 0;
+    const maxRisk = getVideoMaxRisk(v);
     const matchesSeverity =
       severityFilter === "all" ||
       (severityFilter === "critical" && maxRisk >= 80) ||
@@ -167,13 +168,12 @@ function FlaggedVideosPage() {
   // Summary stats
   const total = flaggedVideos?.length || 0;
   const critical = (flaggedVideos || []).filter(
-    (v: any) => v.audits?.length > 0 && Math.max(...v.audits.map((a: any) => a.risk_score)) >= 80
+    (v: any) => getVideoMaxRisk(v) >= 80
   ).length;
   const avgRisk =
     total > 0
       ? (flaggedVideos || []).reduce((acc: number, v: any) => {
-          const max = v.audits?.length > 0 ? Math.max(...v.audits.map((a: any) => a.risk_score)) : 0;
-          return acc + max;
+          return acc + getVideoMaxRisk(v);
         }, 0) / total
       : 0;
 
@@ -297,8 +297,7 @@ function FlaggedVideosPage() {
             <div className="space-y-2 max-h-[calc(100vh-18rem)] overflow-y-auto pr-1">
               {filteredVideos.map((v: any) => {
                 const isSelected = v.id === selectedVideoId;
-                const maxRisk =
-                  v.audits?.length > 0 ? Math.max(...v.audits.map((a: any) => a.risk_score)) : 0;
+                const maxRisk = getVideoMaxRisk(v);
                 const isCritical = maxRisk >= 80;
 
                 return (
@@ -336,7 +335,7 @@ function FlaggedVideosPage() {
                               isCritical ? "text-destructive" : "text-orange-400"
                             }`}
                           >
-                            {maxRisk.toFixed(0)}%
+                            {maxRisk.toFixed(0)}% Risk
                           </span>
                           <SeverityBadge level={isCritical ? "critical" : "high"} />
                         </div>

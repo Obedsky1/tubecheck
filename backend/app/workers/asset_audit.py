@@ -148,20 +148,10 @@ def run_asset_audit(self, org_id: str) -> dict:
 
             # Persist
             severity_label = _compute_severity(max_risk_score)
-            audit = AuditResult(
-                org_id=org_uuid,
-                audit_type=AuditType.ASSET_REUSE,
-                risk_score=round(max_risk_score, 2),
-                severity=Severity(severity_label),
-                details={
-                    "matched_pairs": matched_pairs[:50],
-                    "total_matches": len(matched_pairs),
-                    "total_hashed": len(hashed_videos),
-                    "skipped_videos": skipped[:20],
-                },
+            audit = save_or_update_audit_result(
+                session=session,
+                details={}
             )
-            session.add(audit)
-            session.commit()
 
             logger.info(
                 "Asset audit for org %s complete: %d matches, risk=%.1f",

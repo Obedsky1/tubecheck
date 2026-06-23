@@ -88,14 +88,13 @@ async def connect_channels(
     for ch in new_channels:
         await db.refresh(ch)
 
-    # Dispatch Celery sync tasks (import late to avoid circular deps)
-    from app.celery_app import celery_app
+    from app.services.task_dispatcher import enqueue_task
 
     for ch in new_channels:
-        celery_app.send_task(
+        enqueue_task(
             "app.workers.sync_channel",
-            args=[str(ch.id)],
-            queue="default",
+            payload={"channel_id": str(ch.id)},
+            queue="default"
         )
 
     return new_channels
@@ -156,11 +155,11 @@ async def trigger_sync(
     channel.status = ChannelStatus.SYNCING
     await db.flush()
 
-    from app.celery_app import celery_app
+    from app.services.task_dispatcher import enqueue_task
 
-    celery_app.send_task(
+    enqueue_task(
         "app.workers.sync_channel",
-        args=[str(channel_id)],
+        payload={"channel_id": str(channel_id)},
         queue="default",
     )
 

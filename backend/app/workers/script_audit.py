@@ -140,19 +140,10 @@ def run_script_audit(self, org_id: str) -> dict:
 
             # Persist audit result
             severity_label = _compute_severity(max_risk_score)
-            audit = AuditResult(
-                org_id=org_uuid,
-                audit_type=AuditType.SCRIPT_SIMILARITY,
-                risk_score=round(max_risk_score, 2),
-                severity=Severity(severity_label),
-                details={
-                    "matched_pairs": matched_pairs[:50],  # cap at 50 pairs
-                    "total_matches": len(matched_pairs),
-                    "total_videos_analysed": len(videos),
-                },
+            audit = save_or_update_audit_result(
+                session=session,
+                details={}
             )
-            session.add(audit)
-            session.commit()
 
             logger.info(
                 "Script audit for org %s complete: %d matches, risk=%.1f",

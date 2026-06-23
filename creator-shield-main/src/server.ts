@@ -72,15 +72,22 @@ export default {
       const url = new URL(request.url);
       if (url.pathname.startsWith("/api/")) {
         try {
-          const backendUrl = "https://humble-presence-production.up.railway.app" + url.pathname + url.search;
+          const baseUrl = process.env.VITE_API_URL || "https://creatorshield-backend-834492205524.us-central1.run.app";
+          const backendUrl = baseUrl.replace(/\/$/, "") + url.pathname + url.search;
           
           // Clone request directly to preserve body stream type, Content-Length and boundary mapping
           const proxyRequest = new Request(backendUrl, request);
           
-          // Override Host header for Railway routing
-          proxyRequest.headers.set("Host", "humble-presence-production.up.railway.app");
+          // Override Host header to avoid routing issues if needed, or leave it to standard fetch
+          const backendHost = new URL(backendUrl).host;
+          proxyRequest.headers.set("Host", backendHost);
 
-          return await fetch(proxyRequest);
+          const response = await fetch(proxyRequest);
+          const newResponse = new Response(response.body, response);
+          newResponse.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+          newResponse.headers.set("Pragma", "no-cache");
+          newResponse.headers.set("Expires", "0");
+          return newResponse;
         } catch (apiError: any) {
           console.error("API proxy error:", apiError);
           return new Response(

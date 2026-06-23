@@ -32,9 +32,9 @@ async def trigger_daily_sync(authorization: str = Header(None)):
         )
 
     try:
-        # Trigger the Celery task asynchronously using send_task to prevent direct imports of worker tasks
-        from app.celery_app import celery_app
-        celery_app.send_task("app.workers.daily_network_sync", queue="default")
+        # Trigger the task asynchronously using task_dispatcher to prevent direct imports of worker tasks
+        from app.services.task_dispatcher import enqueue_task
+        enqueue_task("app.workers.daily_network_sync", payload={}, queue="default")
         logger.info("Daily Network Sync webhook successfully triggered the background task.")
         return {"status": "success", "message": "Daily Network Sync dispatched."}
     except Exception as e:

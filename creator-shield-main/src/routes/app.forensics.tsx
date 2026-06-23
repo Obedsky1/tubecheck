@@ -4,6 +4,7 @@ import { Panel } from "@/components/dashboard/Panel";
 import { SeverityBadge } from "@/components/dashboard/SeverityBadge";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { getVideoMaxRisk } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import {
   ShieldCheck,
@@ -140,26 +141,7 @@ function ForensicsControlPage() {
 
   const activeAlerts = alerts || [];
 
-  const getCompoundedScore = (v: any) => {
-    if (!v.audits || v.audits.length === 0) return 100;
 
-    const getScore = (type: string, fallback = 0) => {
-      const found = v.audits.find((a: any) => a.audit_type === type);
-      return found ? found.risk_score : fallback;
-    };
-
-    const pacing = getScore("SCRIPT_SIMILARITY", 40);
-    const asset = getScore("ASSET_REUSE", 20);
-    const voice = getScore("VOICE_FORENSIC", 15);
-    const deepfake = getScore("DEEPFAKE_SCAN", 10);
-    const velocity = getScore("VELOCITY_ANOMALY", 25);
-
-    const monetization = Math.max(0, 100 - (deepfake * 0.4 + voice * 0.4 + asset * 0.2) * 1.2);
-    const originality = Math.max(0, 100 - (pacing * 0.5 + asset * 0.5));
-    const brand = Math.max(0, 100 - voice * 0.4 - velocity * 0.2);
-
-    return Math.round((monetization + brand + originality) / 3);
-  };
 
   // Helper to extract specific audit risk scores for selected video
   const getAuditScore = (type: string, defaultVal = 0) => {
@@ -308,10 +290,10 @@ function ForensicsControlPage() {
                             {v.channel_title}
                           </span>
                           <div className="flex items-center gap-1.5 shrink-0">
-                            <span className="text-xs font-semibold tabular-nums text-primary">
-                              {getCompoundedScore(v)}% Compliance
+                            <span className="text-xs font-semibold tabular-nums text-destructive">
+                              {getVideoMaxRisk(v).toFixed(0)}% Risk
                             </span>
-                            <SeverityBadge level={getCompoundedScore(v) > 85 ? "stable" : getCompoundedScore(v) > 55 ? "watch" : "high"} />
+                            <SeverityBadge level={getVideoMaxRisk(v) >= 80 ? "critical" : getVideoMaxRisk(v) >= 60 ? "high" : getVideoMaxRisk(v) >= 40 ? "watch" : "stable"} />
                           </div>
                         </div>
                         <h4 className="mt-0.5 text-xs font-semibold tracking-tight text-foreground truncate group-hover:text-primary transition-colors">

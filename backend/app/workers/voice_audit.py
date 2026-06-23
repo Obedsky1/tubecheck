@@ -302,24 +302,10 @@ def run_voice_audit(self, org_id: str) -> dict:
 
             # Persist
             severity_label = _compute_severity(max_risk_score)
-            audit = AuditResult(
-                org_id=org_uuid,
-                audit_type=AuditType.VOICE_FORENSIC,
-                risk_score=round(max_risk_score, 2),
-                severity=Severity(severity_label),
-                details={
-                    "tts_detections": tts_detections[:20],
-                    "voice_fingerprint_matches": voice_matches[:50],
-                    "total_voices_analysed": len(voice_fingerprints),
-                    "feature_stats": {
-                        "dimensions": 48,
-                        "tts_threshold": 0.5,
-                        "voice_match_threshold": 0.90,
-                    },
-                },
+            audit = save_or_update_audit_result(
+                session=session,
+                details={}
             )
-            session.add(audit)
-            session.commit()
 
             logger.info(
                 "Voice audit for org %s complete: %d TTS, %d voice matches, risk=%.1f",

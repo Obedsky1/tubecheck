@@ -84,7 +84,7 @@ function ReportsPage() {
               <thead className="text-xs text-muted-foreground bg-accent/50 uppercase border-b">
                 <tr>
                   <th className="px-6 py-4 font-semibold">Compliance Metric</th>
-                  <th className="px-6 py-4 font-semibold">Compliance Rating</th>
+                  <th className="px-6 py-4 font-semibold">Risk Score</th>
                   <th className="px-6 py-4 font-semibold">Risk Level</th>
                   <th className="px-6 py-4 font-semibold">Video</th>
                   <th className="px-6 py-4 font-semibold text-right">Date</th>
@@ -108,7 +108,7 @@ function ReportsPage() {
                     <tr key={audit.id} className="hover:bg-accent/30 transition-colors">
                       <td className="px-6 py-4 font-semibold text-foreground text-xs">{getCreatorMetricName(audit.audit_type)}</td>
                       <td className="px-6 py-4">
-                        <span className="font-semibold text-primary">{Math.round(100 - audit.risk_score)}%</span>
+                        <span className="font-semibold text-destructive">{Math.round(audit.risk_score)}% Risk</span>
                       </td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase ${

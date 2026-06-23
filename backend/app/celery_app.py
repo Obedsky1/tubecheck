@@ -114,6 +114,7 @@ celery_app = Celery(
 celery_app.conf.update(
     broker_use_ssl=broker_ssl_context,
     redis_backend_use_ssl=backend_ssl_context,
+    task_ignore_result=True,
 
     # Serialisation
     task_serializer="json",

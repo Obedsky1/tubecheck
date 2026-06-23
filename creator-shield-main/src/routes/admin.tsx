@@ -9,6 +9,14 @@ import {
 
 // ── Auth guard ────────────────────────────────────────────────────────────────
 export const Route = createFileRoute("/admin")({
+  beforeLoad: () => {
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("cs_token");
+      if (!token) {
+        throw redirect({ to: "/login" });
+      }
+    }
+  },
   component: AdminPanel,
 });
 
@@ -23,6 +31,12 @@ function apiFetch(path: string, options?: RequestInit) {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options?.headers,
     },
+  }).then((res) => {
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem("cs_token");
+      window.location.href = "/login";
+    }
+    return res;
   });
 }
 

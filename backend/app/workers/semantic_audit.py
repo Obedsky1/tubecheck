@@ -1,7 +1,7 @@
 import logging
 import uuid
 from app.celery_app import celery_app
-from app.workers.task_utils import get_sync_db_session, compute_severity
+from app.workers.task_utils import get_sync_db_session, compute_severity, save_or_update_audit_result
 from app.services.embedding_service import embedding_service
 from app.services.semantic_service import semantic_service
 from app.services.policy_engine import policy_engine
@@ -112,22 +112,10 @@ def run_semantic_audit(self, org_id: str) -> dict:
             for s in c.videos: # Naive, fetch from DB scores
                 pass
             
-        summary_audit = AuditResult(
-            org_id=org_uuid,
-            audit_type=AuditType.SCRIPT_SIMILARITY,
-            risk_score=round(100.0 - rep_report["trust_index"], 2),
-            severity=compute_severity(100.0 - rep_report["trust_index"]),
-            details={
-                "clusters_detected": len(clusters),
-                "trust_index": rep_report["trust_index"],
-                "threat_score": rep_report["threat_score"],
-                "monetization_stability": rep_report["monetization_stability"],
-                "monetization_status": rep_report["monetization_status"],
-                "active_policy_risks": len(policy_risks)
-            }
+        summary_audit = save_or_update_audit_result(
+            session=session,
+            details={}
         )
-        session.add(summary_audit)
-        session.commit()
 
         logger.info("Semantic audit complete for organization %s", org_id)
         return {

@@ -36,8 +36,28 @@ def resolve_upload_path(video_id: str, expected_path: str) -> str | None:
     Returns the local path if available, or None if the file cannot be recovered.
     """
     # Fast path: file already exists locally
-    if os.path.exists(expected_path):
+    if not expected_path.startswith("http") and os.path.exists(expected_path):
         return expected_path
+
+    # If it's a URL, download it directly (used for R2 / S3 storage)
+    if expected_path.startswith("http://") or expected_path.startswith("https://"):
+        logger.info("Downloading file from remote URL: %s", expected_path)
+        import tempfile
+        import httpx
+        upload_dir = os.path.join(tempfile.gettempdir(), "shieldnetwork_uploads")
+        os.makedirs(upload_dir, exist_ok=True)
+        local_path = os.path.join(upload_dir, f"{video_id}.mp4")
+        
+        try:
+            with httpx.stream("GET", expected_path) as response:
+                response.raise_for_status()
+                with open(local_path, "wb") as f:
+                    for chunk in response.iter_bytes(chunk_size=1024*1024):
+                        f.write(chunk)
+            return local_path
+        except Exception as e:
+            logger.error("Failed to download file from URL %s: %s", expected_path, e)
+            return None
 
     logger.warning(
         "Upload file not found locally at %s — attempting Redis recovery for %s",
@@ -127,4 +147,25 @@ def upload_to_s3(local_path: str, s3_key: str) -> str:
             
     # 3. Fallback/mock
     return f"mock_media_url://{s3_key}"
+
+
+
+def save_or_update_audit_result(session, org_id, audit_type, risk_score, severity, video_uuid=None, details=None):
+    from app.models import AuditResult
+    from sqlalchemy import select
+    if video_uuid:
+        stmt = select(AuditResult).where(AuditResult.video_id == video_uuid, AuditResult.audit_type == audit_type)
+    else:
+        stmt = select(AuditResult).where(AuditResult.video_id.is_(None), AuditResult.org_id == org_id, AuditResult.audit_type == audit_type)
+    
+    audit = session.execute(stmt).scalar_one_or_none()
+    if audit:
+        audit.risk_score = risk_score
+        audit.severity = severity
+        audit.details = details or {}
+    else:
+        audit = AuditResult(video_id=video_uuid, org_id=org_id, audit_type=audit_type, risk_score=risk_score, severity=severity, details=details or {})
+        session.add(audit)
+    session.commit()
+    return audit
 

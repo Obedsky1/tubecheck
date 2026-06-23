@@ -49,7 +49,7 @@ async def run_audits(
     if org_check.scalar_one_or_none() is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found or access denied")
 
-    from app.celery_app import celery_app
+    from app.services.task_dispatcher import enqueue_task
 
     dispatched: list[dict[str, str]] = []
     for audit_type in body.audit_types:
@@ -62,10 +62,10 @@ async def run_audits(
             })
             continue
 
-        result = celery_app.send_task(task_name, args=[str(body.org_id)])
+        enqueue_task(task_name, payload={"org_id": str(body.org_id)}, queue="default")
         dispatched.append({
             "audit_type": audit_type.value,
-            "task_id": result.id,
+            "task_id": task_name,
             "status": "dispatched",
         })
 
@@ -207,29 +207,36 @@ async def upload_video_for_audit(
         while chunk := await file.read(1024 * 1024):  # Read in 1MB chunks
             f.write(chunk)
 
-    # Also store in Redis for cross-container access in 1MB chunks to prevent OOM.
-    # The Celery worker runs in a separate container with its own /tmp,
-    # so it cannot read the file from disk. Workers will download from Redis.
+    # Upload to Cloud Storage (R2/S3) for stateless Cloud Run execution
     try:
-        import redis as redis_module
-        from app.config import get_settings as _get_settings
-        _s = _get_settings()
-        _r = redis_module.Redis.from_url(_s.REDIS_URL, ssl_cert_reqs=None)
-        redis_key_base = f"upload:{video_id}"
-        CHUNK = 1024 * 1024  # 1MB
-        with open(file_path, "rb") as f:
-            chunk_index = 0
-            while True:
-                chunk = f.read(CHUNK)
-                if not chunk:
-                    break
-                chunk_key = f"{redis_key_base}:{chunk_index}"
-                _r.setex(chunk_key, 86400, chunk)
-                chunk_index += 1
-            _r.setex(f"{redis_key_base}:count", 86400, str(chunk_index))
-        logger.info("Stored upload %s in Redis (%d chunks)", video_id, chunk_index)
-    except Exception as _redis_err:
-        logger.warning("Failed to cache upload %s in Redis: %s", video_id, _redis_err)
+        from app.workers.task_utils import upload_to_s3
+        s3_key = f"uploads/{video_id}{file_ext}"
+        s3_url = upload_to_s3(file_path, s3_key)
+        
+        if s3_url and not s3_url.startswith("failed") and not s3_url.startswith("mock"):
+            file_path = s3_url
+            logger.info("Successfully uploaded %s to cloud storage: %s", video_id, s3_url)
+        else:
+            logger.warning("Cloud storage upload failed for %s. Falling back to Redis chunking.", video_id)
+            import redis as redis_module
+            from app.config import get_settings as _get_settings
+            _s = _get_settings()
+            _r = redis_module.Redis.from_url(_s.REDIS_URL, ssl_cert_reqs=None)
+            redis_key_base = f"upload:{video_id}"
+            CHUNK = 1024 * 1024  # 1MB
+            with open(file_path, "rb") as f:
+                chunk_index = 0
+                while True:
+                    chunk = f.read(CHUNK)
+                    if not chunk:
+                        break
+                    chunk_key = f"{redis_key_base}:{chunk_index}"
+                    _r.setex(chunk_key, 86400, chunk)
+                    chunk_index += 1
+                _r.setex(f"{redis_key_base}:count", 86400, str(chunk_index))
+            logger.info("Stored upload %s in Redis (%d chunks)", video_id, chunk_index)
+    except Exception as _upload_err:
+        logger.warning("Failed to cache upload %s in R2 or Redis: %s", video_id, _upload_err)
 
     # Open a fresh database session for writing video and job records
     from app.database import async_session_factory
@@ -338,37 +345,37 @@ async def upload_video_for_audit(
     await db.close()
 
     # Dispatch audit pipeline
-    from app.celery_app import celery_app
+    from app.services.task_dispatcher import enqueue_task
 
     dispatched_tasks: list[str] = []
     selected_scans = [s.strip().lower() for s in scans.split(",") if s.strip()]
 
     # Step 1 – Whisper transcription (marked as new upload)
     if "transcript" in selected_scans:
-        task_whisper = celery_app.send_task(
+        enqueue_task(
             "app.workers.transcribe_upload",
-            args=[str(video_id), file_path, True],  # is_new_upload=True
-            queue="heavy",
+            payload={"video_id": str(video_id), "file_path": file_path, "is_new_upload": True},
+            queue="heavy"
         )
-        dispatched_tasks.append(f"whisper:{task_whisper.id}")
+        dispatched_tasks.append("app.workers.transcribe_upload")
 
     # Step 2 – Visual/asset audits on the uploaded file
     if "deepfake" in selected_scans:
-        task_deepfake = celery_app.send_task(
+        enqueue_task(
             "app.workers.deepfake_scan",
-            args=[str(video_id), file_path],
-            queue="heavy",
+            payload={"video_id": str(video_id), "file_path": file_path},
+            queue="heavy"
         )
-        dispatched_tasks.append(f"deepfake_scan:{task_deepfake.id}")
+        dispatched_tasks.append("app.workers.deepfake_scan")
 
     # Step 3 - Gemini Vision Pre-Publish Scan
     if "visual" in selected_scans:
-        task_vision = celery_app.send_task(
+        enqueue_task(
             "app.workers.frame_worker.detect_frame_similarity",
-            args=[str(video_id)],
-            queue="heavy",
+            payload={"video_id": str(video_id)},
+            queue="heavy"
         )
-        dispatched_tasks.append(f"detect_frame_similarity:{task_vision.id}")
+        dispatched_tasks.append("app.workers.frame_worker.detect_frame_similarity")
 
     return {
         "video_id": video_id,

@@ -132,22 +132,24 @@ def sync_youtube_channel(self, channel_id: str) -> dict:
                 session.commit()
                 new_video_ids.append(str(new_video.id))
 
-        # 7. Auto-trigger downstream Celery audits
+        from app.services.task_dispatcher import enqueue_task
+
+        # 7. Auto-trigger downstream audits
         for vid_id in new_video_ids:
-            celery_app.send_task(
+            enqueue_task(
                 "app.workers.transcript_worker.extract_transcript",
-                args=[vid_id],
+                payload={"video_id": vid_id},
                 queue="default"
             )
-            celery_app.send_task(
+            enqueue_task(
                 "app.workers.moderation_worker.scan_moderation",
-                args=[vid_id],
+                payload={"video_id": vid_id},
                 queue="default"
             )
             
-        celery_app.send_task(
+        enqueue_task(
             "app.workers.visual_audit.run_visual_audit",
-            args=[str(org.id)],
+            payload={"org_id": str(org.id)},
             queue="default"
         )
         
@@ -187,12 +189,13 @@ def daily_network_sync() -> dict:
             )
         ).scalars().all()
         
+        from app.services.task_dispatcher import enqueue_task
         queued_count = 0
         for channel in channels:
             # Spawn a sub-task for each channel to run in parallel
-            celery_app.send_task(
+            enqueue_task(
                 "app.workers.sync_channel",
-                args=[str(channel.id)],
+                payload={"channel_id": str(channel.id)},
                 queue="default"
             )
             queued_count += 1

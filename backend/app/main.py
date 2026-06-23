@@ -16,13 +16,13 @@ import logging
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import engine
 from app.routers import (
-    auth, audits, channels, dashboard, policy, velocity, remediation, niche_finder, subscriptions, payments, admin, appeals, webhooks
+    auth, audits, channels, dashboard, policy, velocity, remediation, niche_finder, subscriptions, payments, admin, appeals, webhooks, tasks
 )
 
 logger = logging.getLogger(__name__)
@@ -104,6 +104,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Cache Control ─────────────────────────────────────────────────────────────
+
+@app.middleware("http")
+async def add_cache_control_header(request: Request, call_next):
+    """Prevent downstream CDN caching (e.g., Cloudflare) for API endpoints."""
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
 # ── Security Headers ──────────────────────────────────────────────────────────
 
 @app.middleware("http")
@@ -132,6 +143,10 @@ app.include_router(niche_finder.router, prefix="/api")
 app.include_router(appeals.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(webhooks.router, prefix="/api")
+
+# We don't prefix /api here because the router definition itself defines /api/tasks
+# so it matches the GCP URL format.
+app.include_router(tasks.router)
 
 
 # ── Health ────────────────────────────────────────────────────────────────────

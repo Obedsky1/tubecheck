@@ -188,33 +188,10 @@ def run_velocity_audit(self, org_id: str) -> dict:
 
             # ── Persist ───────────────────────────────────────────────────
             severity_label = _compute_severity(combined_risk)
-            audit = AuditResult(
-                org_id=org_uuid,
-                audit_type=AuditType.VELOCITY_ANOMALY,
-                risk_score=round(combined_risk, 2),
-                severity=Severity(severity_label),
-                details={
-                    "per_channel_stats": per_channel_stats,
-                    "network_velocity": {
-                        "total_videos": len(all_timestamps),
-                        "span_days": round(span_days, 2),
-                        "mean_uploads_per_day": round(mean_uploads_per_day, 2),
-                        "mean_interval_hours": round(network_mean_interval, 2),
-                        "cv": round(network_cv, 4),
-                    },
-                    "pattern_type": pattern_types if pattern_types else ["normal"],
-                    "burst_details": burst_details[:5],
-                    "intervals_sample": [
-                        round(x, 2) for x in network_intervals[:30]
-                    ],
-                    "content_farm_probability": farm_report["content_farm_probability"],
-                    "automation_footprint_index": farm_report["automation_footprint_index"],
-                    "cross_channel_contamination_score": farm_report["cross_channel_contamination_score"],
-                    "velocity_metrics": farm_report["metrics"]
-                },
+            audit = save_or_update_audit_result(
+                session=session,
+                details={}
             )
-            session.add(audit)
-            session.commit()
 
             logger.info(
                 "Velocity audit for org %s complete: patterns=%s, risk=%.1f",

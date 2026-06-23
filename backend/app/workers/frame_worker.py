@@ -10,7 +10,7 @@ from google import genai
 from google.genai import types
 
 from app.celery_app import celery_app
-from app.workers.task_utils import get_sync_db_session, compute_severity, resolve_upload_path
+from app.workers.task_utils import get_sync_db_session, compute_severity, resolve_upload_path, save_or_update_audit_result
 from app.models import Video, AuditResult, AuditType, VideoStatus
 from app.config import get_settings
 
@@ -69,16 +69,15 @@ def detect_frame_similarity(self, video_id: str) -> dict:
                 cached_data = json.loads(cached)
                 logger.info("Cache HIT for frame similarity on video %s — skipping Gemini Vision call.", video.youtube_video_id)
                 # Upsert from cache
-                audit = AuditResult(
-                    video_id=video_uuid,
-                    org_id=video.channel.org_id,
-                    audit_type=AuditType.ASSET_REUSE,
-                    risk_score=cached_data["risk_score"],
-                    severity=compute_severity(cached_data["risk_score"]),
-                    details={**cached_data["details"], "served_from_cache": True},
-                )
-                session.add(audit)
-                session.commit()
+                audit = save_or_update_audit_result(
+            session=session,
+            video_uuid=video_uuid,
+            org_id=video.channel.org_id,
+            audit_type=AuditType.ASSET_REUSE,
+            risk_score=cached_data["risk_score"],
+            severity=compute_severity(cached_data["risk_score"]),
+            details={**cached_data["details"], "served_from_cache": True},
+        )
                 return {"status": "completed", "risk_score": cached_data["risk_score"], "source": "cache"}
         except Exception as redis_err:
             logger.warning("Redis cache check failed (non-fatal): %s", redis_err)
@@ -224,16 +223,15 @@ def detect_frame_similarity(self, video_id: str) -> dict:
         # ──────────────────────────────────────────────────
 
         # Save AuditResult
-        audit = AuditResult(
-            video_id=video_uuid,
+        audit = save_or_update_audit_result(
+            session=session,
+            video_uuid=video_uuid,
             org_id=video.channel.org_id,
             audit_type=AuditType.ASSET_REUSE,
             risk_score=risk_score,
             severity=severity,
             details=details
         )
-        session.add(audit)
-        session.commit()
 
         logger.info("Frame similarity check completed for video %s, risk_score=%.1f", video_id, risk_score)
         return {"status": "completed", "risk_score": risk_score}

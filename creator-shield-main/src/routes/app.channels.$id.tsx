@@ -125,26 +125,10 @@ function ChannelDetail() {
   const videoIds = new Set(videoList.map((v: any) => v.id));
   const channelAudits = (auditResults || []).filter((r: any) => videoIds.has(r.video_id));
 
-  const getCompoundedScore = (videoId: string) => {
+  const getVideoRisk = (videoId: string) => {
     const vAudits = channelAudits.filter((a: any) => a.video_id === videoId);
-    if (vAudits.length === 0) return 100;
-
-    const getScore = (type: string, fallback = 0) => {
-      const found = vAudits.find((a: any) => a.audit_type === type);
-      return found ? found.risk_score : fallback;
-    };
-
-    const pacing = getScore("SCRIPT_SIMILARITY", 40);
-    const asset = getScore("ASSET_REUSE", 20);
-    const voice = getScore("VOICE_FORENSIC", 15);
-    const deepfake = getScore("DEEPFAKE_SCAN", 10);
-    const velocity = getScore("VELOCITY_ANOMALY", 25);
-
-    const monetization = Math.max(0, 100 - (deepfake * 0.4 + voice * 0.4 + asset * 0.2) * 1.2);
-    const originality = Math.max(0, 100 - (pacing * 0.5 + asset * 0.5));
-    const brand = Math.max(0, 100 - voice * 0.4 - velocity * 0.2);
-
-    return Math.round((monetization + brand + originality) / 3);
+    if (vAudits.length === 0) return 0;
+    return Math.max(...vAudits.map((a: any) => a.risk_score));
   };
 
   const complianceSeries = (() => {
@@ -409,8 +393,8 @@ function ChannelDetail() {
                     </div>
                   </div>
                   <div className="shrink-0 flex flex-col items-end gap-1">
-                    <span className="text-[11px] font-bold text-primary">{getCompoundedScore(v.id)}% Compliance</span>
-                    <SeverityBadge level={getCompoundedScore(v.id) > 85 ? "stable" : getCompoundedScore(v.id) > 55 ? "watch" : "high"} />
+                    <span className="text-[11px] font-bold text-destructive">{getVideoRisk(v.id).toFixed(0)}% Risk</span>
+                    <SeverityBadge level={getVideoRisk(v.id) >= 80 ? "critical" : getVideoRisk(v.id) >= 60 ? "high" : getVideoRisk(v.id) >= 40 ? "watch" : "stable"} />
                   </div>
                 </div>
               ))
