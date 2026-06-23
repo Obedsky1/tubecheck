@@ -175,7 +175,8 @@ def run_voice_audit(self, org_id: str) -> dict:
     from sqlalchemy.orm import Session
 
     from app.config import get_settings
-    from app.models import AuditResult, AuditType, Channel, Severity, Video
+    from app.models import AuditType, Channel, Video
+    from app.workers.task_utils import save_or_update_audit_result
 
     settings = get_settings()
     engine = create_engine(settings.DATABASE_URL_SYNC)
@@ -304,7 +305,11 @@ def run_voice_audit(self, org_id: str) -> dict:
             severity_label = _compute_severity(max_risk_score)
             audit = save_or_update_audit_result(
                 session=session,
-                details={}
+                org_id=str(org_uuid),
+                audit_type=AuditType.VOICE_FORENSIC,
+                risk_score=max_risk_score,
+                severity=severity_label,
+                details={"cloned_pairs": flagged_pairs}
             )
 
             logger.info(
