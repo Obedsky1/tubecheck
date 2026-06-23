@@ -46,6 +46,7 @@ def sync_youtube_channel(self, channel_id: str) -> dict:
             ).fetchone()
         except Exception as db_err:
             logger.warning("Database query to youtube_channels failed: %s", db_err)
+            session.rollback()
             
         access_token = None
         if result and result[0]:

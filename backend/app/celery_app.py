@@ -8,6 +8,8 @@ from celery.schedules import crontab
 from app.config import get_settings
 
 import logging
+import sys
+import os
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
