@@ -12,70 +12,6 @@ import logging
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# Start a background HTTP health check server for Railway if running as Celery worker
-import sys
-import os
-import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
-
-print(f"[celery_app] sys.argv at import time: {sys.argv}", flush=True)
-
-if any("celery" in arg.lower() for arg in sys.argv):
-    # Dynamically limit concurrency/autoscale to prevent OOM on 1GB RAM instances.
-    # Read cap from env (set CELERYD_CONCURRENCY=2 in Railway), default to 2.
-    _max_concurrency = int(os.environ.get("CELERYD_CONCURRENCY", "2"))
-    _max_concurrency = min(_max_concurrency, 2)  # hard cap at 2 regardless
-    
-    # Strip all existing concurrency/autoscale flags, then inject our cap
-    new_argv = []
-    skip_next = False
-    for i, arg in enumerate(sys.argv):
-        if skip_next:
-            skip_next = False
-            continue
-        if arg.startswith("--autoscale=") or arg == "--autoscale":
-            if arg == "--autoscale":
-                skip_next = True  # skip the value too
-            continue  # drop the autoscale flag entirely
-        elif arg in ("-c", "--concurrency"):
-            skip_next = True  # skip the value
-            continue  # drop it; we'll add our own below
-        elif arg.startswith("--concurrency="):
-            continue  # drop it
-        else:
-            new_argv.append(arg)
-    # Inject our hard cap
-    new_argv.append(f"--concurrency={_max_concurrency}")
-    sys.argv = new_argv
-    logger.info(f"[celery_app] Overrode worker argv (concurrency={_max_concurrency}): {sys.argv}")
-                
-    class HealthCheckHandler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            if self.path in ("/", "/health", "/api/health"):
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(b'{"status":"healthy","service":"celery-worker"}')
-            else:
-                self.send_response(404)
-                self.end_headers()
-
-        def log_message(self, format, *args):
-            # Suppress default logging to keep worker output clean
-            pass
-
-    def start_health_server():
-        port = int(os.environ.get("PORT", 8000))
-        logger.info(f"Starting Celery background health check server on port {port}...")
-        try:
-            server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
-            server.serve_forever()
-        except Exception as e:
-            logger.warning(f"Celery background health check server warning (port may be in use): {e}")
-
-    t = threading.Thread(target=start_health_server, daemon=True)
-    t.start()
-
 
 if settings.SENTRY_DSN:
     try:
@@ -126,9 +62,8 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=100,
 
-    # Concurrency cap: prevent OOM on 1GB Railway containers
-    # Reads CELERYD_CONCURRENCY env var, capped at 2
-    worker_concurrency=min(int(os.environ.get("CELERYD_CONCURRENCY", "2")), 2),
+    # Concurrency cap: prevent OOM on 1GB containers
+    worker_concurrency=2,
 
     # Timeouts
     task_soft_time_limit=300,
